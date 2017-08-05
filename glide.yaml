@@ -5,6 +5,9 @@ import:
 - package: github.com/containernetworking/cni
   version: ~0.6.0-rc1
 - package: github.com/AsynkronIT/protoactor-go
+  subpackages:
+  - remote
+  - actor
 - package: github.com/Sirupsen/logrus
   version: ~1.0.2
 - package: github.com/jolestar/go-commons-pool
