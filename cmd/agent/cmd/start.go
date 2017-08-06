@@ -15,15 +15,15 @@
 package cmd
 
 import (
+	"github.com/AsynkronIT/protoactor-go/actor"
+	"github.com/AsynkronIT/protoactor-go/mailbox"
+	"github.com/AsynkronIT/protoactor-go/remote"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/AsynkronIT/protoactor-go/actor"
+	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-cni/pkg/nicmanagr"
 	"runtime"
-	"github.com/AsynkronIT/protoactor-go/remote"
-	"github.com/AsynkronIT/protoactor-go/mailbox"
-	log "github.com/sirupsen/logrus"
-	"github.com/yunify/qingcloud-cni/pkg/messages"
 )
 
 // startCmd represents the start command
@@ -46,7 +46,6 @@ var startCmd = &cobra.Command{
 			Zone:           viper.GetString("Zone"),
 		})
 
-		for
 	},
 }
 
