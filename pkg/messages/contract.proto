@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package messages;
+import "github.com/AsynkronIT/protoactor-go/actor/protos.proto";
+
+message AllocateNicMessage {
+    string Name = 1;
+}
+
+message AllocateNicReplyMessage {
+    string Name = 1;
+    string NetworkID = 2;
+    string EndpointID = 3;
+    string Address = 4;
+}
+
+message GetGatewayMessage {
+    string vxnet = 1;
+}
+
+message GetGatewayReplyMessage {
+    string NetworkID = 1;
+    string EndpointID = 2;
+    string Address = 3;
+}
+
+message DeleteNicMessage {
+    string nicid = 1;
+}

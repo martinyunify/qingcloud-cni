@@ -11,7 +11,7 @@ type MockQingCloud struct {
 
 func (stub *MockQingCloud) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case messages.CreateNewNicMessage:
+	case messages.AllocateNicMessage:
 		ctx.Respond(messages.ErrorMessage{Err: fmt.Errorf("mock Replied,%v", msg)})
 	}
 }

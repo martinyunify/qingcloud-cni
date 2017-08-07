@@ -24,6 +24,10 @@ import (
 	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-cni/pkg/nicmanagr"
 	"runtime"
+	"os"
+	"os/signal"
+	"syscall"
+
 )
 
 // startCmd represents the start command
@@ -33,18 +37,35 @@ var startCmd = &cobra.Command{
 	Long: `QingCloud container networking agent is a daemon process which allocates and recollects nics resources.
 	`,
 	Run: func(cmd *cobra.Command, args []string) {
+		SetupLoglevel()
 		runtime.GOMAXPROCS(runtime.NumCPU())
 		runtime.GC()
+
 		remote.Start("0.0.0.0:31080", remote.WithEndpointWriterBatchSize(10000))
 		props := actor.FromProducer(nicmanagr.NewNicManager).WithMailbox(mailbox.Bounded(1000))
 		pid, err := actor.SpawnNamed(props, "nicmanager")
 		if err != nil {
 			log.Error(err)
 		}
-		pid.Tell(messages.QingcloudInitializeMessage{
-			QingAccessFile: viper.GetString("QYAccessFilePath"),
-			Zone:           viper.GetString("Zone"),
-		})
+		log.Debugf("Nic Manager is spawned")
+		msg, err := messages.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"))
+		if err != nil {
+			log.Errorf("Invalid QingCloud configuration: %v", err)
+			return
+		}
+		pid.Tell(*msg)
+		log.Debugf("Nic Manager is initialized")
+
+		//event loop
+		systemCh := make(chan os.Signal, 4)
+		signal.Notify(systemCh, os.Interrupt, syscall.SIGTERM)
+		for {
+			select {
+			case <-systemCh:
+				log.Infof("Got interrupt event, shutdown agent..")
+				return
+			}
+		}
 
 	},
 }
@@ -62,8 +83,12 @@ func init() {
 	// is called directly, e.g.:
 	// startCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	startCmd.Flags().String("QYAccessFilePath", "/etc/qingcloud/client.yaml", "QingCloud Access File Path")
-	startCmd.Flags().String("Zone", "pek3a", "QingCloud zone")
+	startCmd.Flags().String("zone", "pek3a", "QingCloud zone")
 	startCmd.Flags().StringSlice("vxnet", []string{"vxnet-xxxxxxx"}, "vxnet id list")
-
+	startCmd.Flags().String("iface", "eth0", "Default nic which is used by host and will not be deleted")
 	viper.BindPFlags(startCmd.Flags())
+}
+
+func getDefaultIface() {
+
 }
