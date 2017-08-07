@@ -2,7 +2,7 @@ package qingactor
 
 import (
 	"github.com/AsynkronIT/protoactor-go/actor"
-	"github.com/yunify/container-nanny/pkg/common"
+	"github.com/yunify/qingcloud-cni/pkg/common"
 	"github.com/yunify/qingcloud-sdk-go/service"
 )
 

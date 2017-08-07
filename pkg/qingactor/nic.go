@@ -5,7 +5,7 @@ import (
 
 	"github.com/AsynkronIT/protoactor-go/actor"
 	log "github.com/sirupsen/logrus"
-	"github.com/yunify/container-nanny/pkg/common"
+	"github.com/yunify/qingcloud-cni/pkg/common"
 	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-sdk-go/service"
 )
