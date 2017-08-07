@@ -109,8 +109,8 @@ func (r *testNameResolver) Resolve(target string) (naming.Watcher, error) {
 		r.w.update <- &naming.Update{
 			Op:   naming.Add,
 			Addr: addr,
-			Metadata: &naming.AddrMetadataGRPCLB{
-				AddrType:   naming.GRPCLB,
+			Metadata: &grpc.AddrMetadataGRPCLB{
+				AddrType:   grpc.GRPCLB,
 				ServerName: lbsn,
 			},
 		}
@@ -627,8 +627,8 @@ func TestBalancerDisconnects(t *testing.T) {
 	resolver.inject([]*naming.Update{
 		{Op: naming.Add,
 			Addr: lbAddrs[2],
-			Metadata: &naming.AddrMetadataGRPCLB{
-				AddrType:   naming.GRPCLB,
+			Metadata: &grpc.AddrMetadataGRPCLB{
+				AddrType:   grpc.GRPCLB,
 				ServerName: lbsn,
 			},
 		},

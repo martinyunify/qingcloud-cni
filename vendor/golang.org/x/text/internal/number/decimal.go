@@ -58,7 +58,7 @@ type Decimal struct {
 	buf [maxIntDigits]byte
 }
 
-// normalize returns a new Decimal with leading and trailing zeros removed.
+// normalize retuns a new Decimal with leading and trailing zeros removed.
 func (d *Decimal) normalize() (n Decimal) {
 	n = *d
 	b := n.Digits

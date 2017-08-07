@@ -619,7 +619,7 @@ func TestStdTypesGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestRepStdTypesGoString(t *testing.T) {
@@ -632,7 +632,7 @@ func TestRepStdTypesGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestMapStdTypesGoString(t *testing.T) {
@@ -645,7 +645,7 @@ func TestMapStdTypesGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestOneofStdTypesGoString(t *testing.T) {
@@ -658,7 +658,7 @@ func TestOneofStdTypesGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestStdTypesSize(t *testing.T) {

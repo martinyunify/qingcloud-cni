@@ -1850,7 +1850,7 @@ func TestMessageGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestNestedGoString(t *testing.T) {
@@ -1863,7 +1863,7 @@ func TestNestedGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestAllMapsGoString(t *testing.T) {
@@ -1876,7 +1876,7 @@ func TestAllMapsGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestAllMapsOrderedGoString(t *testing.T) {
@@ -1889,7 +1889,7 @@ func TestAllMapsOrderedGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestMessageWithMapGoString(t *testing.T) {
@@ -1902,7 +1902,7 @@ func TestMessageWithMapGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestFloatingPointGoString(t *testing.T) {
@@ -1915,7 +1915,7 @@ func TestFloatingPointGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestUint128PairGoString(t *testing.T) {
@@ -1928,7 +1928,7 @@ func TestUint128PairGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestContainsNestedMapGoString(t *testing.T) {
@@ -1941,7 +1941,7 @@ func TestContainsNestedMapGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestContainsNestedMap_NestedMapGoString(t *testing.T) {
@@ -1954,7 +1954,7 @@ func TestContainsNestedMap_NestedMapGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestNotPackedGoString(t *testing.T) {
@@ -1967,7 +1967,7 @@ func TestNotPackedGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestMessageSize(t *testing.T) {

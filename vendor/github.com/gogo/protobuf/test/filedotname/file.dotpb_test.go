@@ -193,7 +193,7 @@ func TestMGoString(t *testing.T) {
 	}
 	_, err := go_parser.ParseExpr(s1)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 }
 func TestMSize(t *testing.T) {
