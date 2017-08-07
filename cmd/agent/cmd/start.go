@@ -23,11 +23,10 @@ import (
 	"github.com/spf13/viper"
 	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-cni/pkg/nicmanagr"
-	"runtime"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
-
 )
 
 // startCmd represents the start command

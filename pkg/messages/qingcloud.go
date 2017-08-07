@@ -1,9 +1,10 @@
 package messages
 
 import (
-	"os"
 	"fmt"
+	"os"
 )
+
 type QingcloudInitializeMessage struct {
 	QingAccessFile string
 	Zone           string
@@ -44,7 +45,6 @@ func NewQingcloudInitializeMessage(filepath string, zone string) (*QingcloudInit
 	}, nil
 }
 
-
 type GetNicsUnderVxnetMessage struct {
 	Hostid  string
 	Vxnetid []string
@@ -52,4 +52,3 @@ type GetNicsUnderVxnetMessage struct {
 
 type GetNicsUnderVxnetReplyMessage struct {
 }
-

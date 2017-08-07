@@ -2,10 +2,10 @@ package qingactor
 
 import (
 	"github.com/AsynkronIT/protoactor-go/actor"
+	log "github.com/sirupsen/logrus"
+	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-sdk-go/config"
 	"github.com/yunify/qingcloud-sdk-go/service"
-	"github.com/yunify/qingcloud-cni/pkg/messages"
-	log "github.com/sirupsen/logrus"
 )
 
 //QingCloudActor QingCloudService Actor

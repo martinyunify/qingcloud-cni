@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/AsynkronIT/protoactor-go/actor"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/version"
-	"github.com/AsynkronIT/protoactor-go/actor"
-	"github.com/yunify/qingcloud-cni/pkg/messages"
 	log "github.com/sirupsen/logrus"
+	"github.com/yunify/qingcloud-cni/pkg/messages"
 
 	"time"
 
@@ -29,7 +29,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	return nil
 }
 
-func main(){
+func main() {
 	skel.PluginMain(cmdAdd, cmdDel, version.All)
 }
 
