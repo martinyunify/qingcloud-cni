@@ -14,3 +14,9 @@ import:
 - package: github.com/spf13/viper
 - package: github.com/sirupsen/logrus
   version: ~1.0.2
+- package: github.com/containernetworking/plugins
+  version: ~0.6.0-rc1
+  subpackages:
+  - pkg/ns
+  - pkg/ip
+- package: github.com/vishvananda/netlink
