@@ -19,7 +19,7 @@ type QingCloudActor struct {
 	routerStub *actor.PID
 	vxNetStub  *actor.PID
 	nicStub    *actor.PID
-	zone       string
+	jobStub *actor.PID
 }
 
 func NewQingCloudActor() actor.Actor {
@@ -37,6 +37,9 @@ func (qactor *QingCloudActor) Stop() {
 	if qactor.nicStub != nil {
 		qactor.nicStub.GracefulStop()
 	}
+	if qactor.jobStub != nil {
+		qactor.jobStub.GracefulStop()
+	}
 }
 
 func (qactor *QingCloudActor) Receive(context actor.Context) {
@@ -50,39 +53,47 @@ func (qactor *QingCloudActor) Receive(context actor.Context) {
 		}
 		newConfig.LoadConfigFromFilepath(msg.QingAccessFile)
 		newConfig.Zone = msg.Zone
-		qactor.zone = msg.Zone
 		qingStub, err := service.Init(newConfig)
 		if err != nil {
 			log.Errorf("Failed to read qingcloud newConfig file")
 			return
 		}
 
-		routerStub, err := qingStub.Router(qactor.zone)
+		jobStub, err := qingStub.Job(newConfig.Zone)
+		if err != nil {
+			log.Errorf("Failed to create job stub")
+			qactor.Stop()
+			return
+		}
+
+		routerStub, err := qingStub.Router(newConfig.Zone)
 		if err != nil {
 			log.Errorf("Failed to create router stub")
 			return
 		}
-		props := actor.FromInstance(&RouterActor{routerStub: routerStub, zone: qactor.zone})
+		props := actor.FromInstance(&RouterActor{routerStub: routerStub,jobStub:jobStub})
 		qactor.routerStub = actor.Spawn(props)
 
-		vxnetStub, err := qingStub.VxNet(qactor.zone)
+		vxnetStub, err := qingStub.VxNet(newConfig.Zone)
 		if err != nil {
 			log.Errorf("Failed to create vxnet stub")
 			qactor.Stop()
 			return
 		}
-		props = actor.FromInstance(&VxNetActor{vxNetStub: vxnetStub, zone: qactor.zone})
+		props = actor.FromInstance(&VxNetActor{vxNetStub: vxnetStub,jobStub:jobStub})
 		qactor.vxNetStub = actor.Spawn(props)
 
-		nicStub, err := qingStub.Nic(qactor.zone)
+		nicStub, err := qingStub.Nic(newConfig.Zone)
 		if err != nil {
 			log.Errorf("Failed to create nic stub")
 			qactor.Stop()
 			return
 		}
 
-		props = actor.FromInstance(&NicActor{nicStub: nicStub, zone: qactor.zone})
+		props = actor.FromInstance(&NicActor{nicStub: nicStub,jobStub:jobStub})
 		qactor.nicStub = actor.Spawn(props)
+
+
 		log.Debugf("QingCloud sdk is initialized.")
 
 		context.PushBehavior(qactor.ProcessMsg)

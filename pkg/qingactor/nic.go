@@ -7,12 +7,18 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yunify/qingcloud-cni/pkg/common"
 	"github.com/yunify/qingcloud-sdk-go/service"
+	"github.com/yunify/qingcloud-sdk-go/client"
+
+	qcutil "github.com/yunify/qingcloud-sdk-go/utils"
+	"time"
+	"github.com/yunify/hostnic-cni/pkg"
+	"net"
 )
 
 //NicActor nic qingcloud handler
 type NicActor struct {
 	nicStub *service.NicService
-	zone    string
+	jobStub *service.JobService
 }
 
 //CreateNicMessage create nic message
@@ -63,60 +69,92 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 			log.Error(reply.Err)
 			context.Respond(reply)
 			return
-		} else {
-			nic := result.Nics[0]
-			reply.Nic = common.Endpoint{
-				NetworkID:  msg.NetworkID,
-				EndpointID: *nic.NICID,
-				Address:    *nic.PrivateIP,
-			}
-
-			instanceid, err := loadInstanceID()
-			if err != nil {
-				reply.Err = fmt.Errorf("Failed to load instanceid: %v", err)
-				log.Error(reply.Err)
-				context.Respond(reply)
-				return
-			}
-			request := service.AttachNicsInput{
-				Nics:     []*string{nic.NICID},
-				Instance: &instanceid,
-			}
-			result, err := nicactor.nicStub.AttachNics(&request)
-			if err != nil || *result.RetCode != 0 {
-				reply.Err = err
-				context.Respond(reply)
-				return
-			}
-			context.Respond(reply)
-
 		}
+		nic := result.Nics[0]
+		reply.Nic = common.Endpoint{
+			NetworkID:  msg.NetworkID,
+			EndpointID: *nic.NICID,
+			Address:    *nic.PrivateIP,
+		}
+		log.Debugf("Created nic %s",*nic.NICID)
+
+		//attach nic to host
+		instanceid, err := loadInstanceID()
+		if err != nil {
+			reply.Err = fmt.Errorf("Failed to load instanceid: %v", err)
+			log.Error(reply.Err)
+			context.Respond(reply)
+			return
+		}
+		attrequest := service.AttachNicsInput{
+			Nics:     []*string{nic.NICID},
+			Instance: &instanceid,
+		}
+		attresult, err := nicactor.nicStub.AttachNics(&attrequest)
+		if err != nil || *attresult.RetCode != 0 {
+			reply.Err = err
+			if reply.Err == nil {
+				reply.Err = fmt.Errorf("failed to attach nic %s",attresult.Message)
+			}
+		}
+
+		if err = nicactor.waitNic(*attresult.JobID,*nic.NICID,net.FlagUp); err != nil{
+			reply.Err = err
+		}
+
+		context.Respond(reply)
+		log.Debugf("Attached nic %s to host",*nic.NICID)
+
 	case DeleteNicMessage:
 		request := service.DetachNicsInput{
 			Nics: []*string{&msg.Nic},
 		}
 		reply := DeleteNicReplyMessage{}
 
-		result, err := nicactor.nicStub.DetachNics(&request)
-		if err != nil || *result.RetCode != 0 {
+		detresult,err :=nicactor.nicStub.DetachNics(&request)
+		if err != nil || *detresult.RetCode != 0{
 			reply.Err = err
 			if reply.Err == nil {
-				reply.Err = fmt.Errorf("Failed to detach nic:%s", *result.Message)
+				reply.Err=fmt.Errorf("Failed to detach nic %s",detresult.Message)
 			}
 			context.Respond(reply)
 			return
-		} else {
-			request := service.DeleteNicsInput{
-				Nics: []*string{&msg.Nic},
-			}
-			result, err := nicactor.nicStub.DeleteNics(&request)
-			if err != nil || *result.RetCode != 0 {
-				reply.Err = err
-				if reply.Err == nil {
-					err = fmt.Errorf("Failed to delete nic: %s", result.Message)
-				}
-			}
-			context.Respond(reply)
 		}
+		if err = client.WaitJob(nicactor.jobStub, *detresult.JobID, 25*time.Second, 5*time.Second);err != nil {
+			reply.Err = err
+			context.Respond(reply)
+			return
+		}
+		delRequest := service.DeleteNicsInput{
+			Nics: []*string{&msg.Nic},
+		}
+
+		delresult, err := nicactor.nicStub.DeleteNics(&delRequest)
+		if err != nil || *delresult.RetCode != 0 {
+			reply.Err = err
+			if reply.Err == nil {
+				reply.Err = fmt.Errorf("Failed to delete nic: %s", delresult.Message)
+			}
+		}
+		context.Respond(reply)
 	}
+}
+
+func (nicactor *NicActor) waitNic(jobid string,nicID string,status net.Flags) error {
+	log.Debugf("Wait for nic %v", nicID)
+	err := qcutil.WaitForSpecific(func() bool {
+		link, err := pkg.LinkByMacAddr(nicID)
+		if err != nil {
+			return false
+		}
+		if link.Attrs().Flags  | status != 0{
+			log.Debugf("Find link %s %s", link.Attrs().Name, nicID)
+			return true
+		}
+		return false
+	}, 25*time.Second, 5*time.Second)
+	if err != nil {
+		return err
+	}
+	return client.WaitJob(nicactor.jobStub, jobid, 25*time.Second, 1*time.Second)
 }

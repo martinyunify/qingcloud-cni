@@ -38,10 +38,16 @@ func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 			NetworkID: manager.vxnet[0],
 			Nicname:   msg.Name,
 		}, 30*time.Second).Result()
-		if err != nil {
-			log.Errorf("Failed to create new nic: %v", err)
-		}
 		response := result.(qingactor.CreateNicReplyMessage)
+
+		if err != nil || response.Err != nil {
+			manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
+				Nic: response.Nic.EndpointID,
+			}, 30*time.Second).Wait()
+			log.Errorf("Failed to create new nic: %v,%v", err,response.Err)
+			ctx.Respond(&messages.AllocateNicReplyMessage{})
+			return
+		}
 		ctx.Respond(&messages.AllocateNicReplyMessage{
 			Name:       msg.Name,
 			EndpointID: response.Nic.EndpointID,
@@ -53,10 +59,11 @@ func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 		result, err := manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
 			Nic: msg.Nicid,
 		}, 30*time.Second).Result()
-		if err != nil || result != nil {
+		reply := result.(qingactor.DeleteNicReplyMessage)
+		if err != nil || reply.Err != nil {
 			log.Errorf("Failed to delete nic: %v,%v", err, result)
 		}
-		ctx.Respond(result)
+		ctx.Respond(msg)
 		log.Debugf("Delete nic.%s", msg.Nicid)
 	case *actor.Stopping:
 		manager.qingStub.GracefulStop()

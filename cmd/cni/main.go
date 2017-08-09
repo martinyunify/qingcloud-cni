@@ -31,6 +31,9 @@ type PluginConf struct {
 	} `json:"args,omitempty"`
 }
 
+const (
+	DefaultDeleteTimeout = 30*time.Second
+)
 // parseConfig parses the supplied configuration (and prevResult) from stdin.
 func parseConfig(stdin []byte) (*PluginConf, error) {
 	conf := PluginConf{}
@@ -52,37 +55,52 @@ func cmdAdd(args *skel.CmdArgs) error {
 	manager := actor.NewPID(conf.Args.BindAddr, conf.Args.ActorID)
 	result, err := manager.RequestFuture(&messages.AllocateNicMessage{
 		Name: args.ContainerID,
-	}, 5*time.Second).Result()
+	}, 60*time.Second).Result()
 	if err != nil {
 		log.Errorf("Failed to get nic: %v", err)
 		return err
 	}
 	response := result.(*messages.AllocateNicReplyMessage)
+	if response.EndpointID == "" {
+		log.Errorf("Failed to get nic: %v")
+		return fmt.Errorf("Failed to get nic: %v")
+	}
 
 	//bind iface to ns
 	iface, err := LinkByMacAddr(response.EndpointID)
 	if err != nil {
-		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, 5*time.Second).Wait()
-		return fmt.Errorf("LinkSetNsFd err %s, delete Nic %s", err.Error(), response.EndpointID)
-
+		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, DefaultDeleteTimeout).Wait()
+		return fmt.Errorf("LinkByMacAddr err %s, delete Nic %s", err.Error(), response.EndpointID)
 	}
 
-	netns, err := ns.GetNS(args.Netns)
+	netns,err:=ns.GetNS(args.Netns)
 	if err != nil {
-		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, 5*time.Second).Wait()
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, DefaultDeleteTimeout).Wait()
+		return fmt.Errorf("Failed to get network namespace")
 	}
 	defer netns.Close()
 
 	if err = netlink.LinkSetNsFd(iface, int(netns.Fd())); err != nil {
-		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, 5*time.Second).Wait()
+		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, DefaultDeleteTimeout).Wait()
 		return fmt.Errorf("LinkSetNsFd err %s, delete Nic %s", err.Error(), response.EndpointID)
 	}
 
-	if err = netlink.LinkSetUp(iface); err != nil {
-		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, 5*time.Second).Wait()
-		return fmt.Errorf("failed to set %q UP: %v", iface.Attrs().Name, err)
-	}
+	ifacename := iface.Attrs().Name
+
+	err = netns.Do(func(_ ns.NetNS) error {
+		nsiface , err := netlink.LinkByName(ifacename)
+		if err != nil {
+			return fmt.Errorf("failed to get link by name %q: %v", ifacename, err)
+		}
+		if err := netlink.LinkSetName(nsiface, args.IfName); err != nil {
+			return fmt.Errorf("set link %s to name %s err: %v", nsiface.Attrs().HardwareAddr.String(), ifacename, args.IfName)
+		}
+
+		if err := netlink.LinkSetUp(nsiface); err != nil {
+			return fmt.Errorf("failed to set %q UP: %v", ifacename, err)
+		}
+		return nil
+	})
 
 	//return result
 	netiface := &current.Interface{Name: args.IfName, Mac: response.EndpointID, Sandbox: args.ContainerID}
@@ -99,25 +117,35 @@ func cmdDel(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-
+	ns.GetCurrentNS()
 	remote.Start("127.0.0.1:0", remote.WithEndpointWriterBatchSize(10000))
 	manager := actor.NewPID(conf.Args.BindAddr, conf.Args.ActorID)
 
-	netns, err := ns.GetNS(args.Netns)
+	err = ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
+		ifName := args.IfName
+		iface, err := netlink.LinkByName(ifName)
+		if err != nil {
+			return fmt.Errorf("failed to lookup %q: %v", ifName, err)
+		}
+		if err := netlink.LinkSetDown(iface); err != nil {
+			return fmt.Errorf("Failed to set link down:%v", err)
+		}
+		if err = netlink.LinkSetNsPid(iface,os.Getpid()); err != nil {
+			return fmt.Errorf("Failed to set namespace to default ns, %v",err)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return err
 	}
-	defer netns.Close()
-	ifName := args.IfName
-	iface, err := netlink.LinkByName(ifName)
+
+	iface, err := netlink.LinkByName(args.IfName)
 	if err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", ifName, err)
-	}
-	if err := netlink.LinkDel(iface); err != nil {
-		return fmt.Errorf("Failed to del link :%v", err)
+		return fmt.Errorf("failed to lookup %q in default ns: %v", args.IfName, err)
 	}
 
-	result, err := manager.RequestFuture(&messages.DeleteNicMessage{Nicid: iface.Attrs().HardwareAddr.String()}, 5*time.Second).Result()
+	result, err := manager.RequestFuture(&messages.DeleteNicMessage{Nicid: iface.Attrs().HardwareAddr.String()}, DefaultDeleteTimeout).Result()
 	if err != nil {
 		log.Errorf("Got error %v", err)
 	}
