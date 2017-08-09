@@ -2,12 +2,15 @@ package messages
 
 import (
 	"fmt"
+	"net"
 	"os"
 )
 
 type QingcloudInitializeMessage struct {
 	QingAccessFile string
 	Zone           string
+	Iface          string
+	Vxnet          []string
 }
 
 const (
@@ -26,7 +29,7 @@ var zoneMap = map[string]uint{
 	"sha1":  SHA1,
 }
 
-func NewQingcloudInitializeMessage(filepath string, zone string) (*QingcloudInitializeMessage, error) {
+func NewQingcloudInitializeMessage(filepath string, zone string, iface string, vxnet []string) (*QingcloudInitializeMessage, error) {
 	if filepath == "" {
 		return nil, fmt.Errorf("Access File Path is emtpy")
 	}
@@ -39,9 +42,20 @@ func NewQingcloudInitializeMessage(filepath string, zone string) (*QingcloudInit
 	if _, ok := zoneMap[zone]; !ok {
 		return nil, fmt.Errorf("Zone is invalid %s", zone)
 	}
+	if _, err := net.InterfaceByName(iface); err != nil {
+		return nil, fmt.Errorf("Iface is invalid: %s", err)
+	}
+
+	for _, item := range vxnet {
+		if item == "" || item == "vxnet-xxxxxxx" {
+			return nil, fmt.Errorf("Invalid vxnet: %s", item)
+		}
+	}
 	return &QingcloudInitializeMessage{
 		Zone:           zone,
 		QingAccessFile: filepath,
+		Iface:          iface,
+		Vxnet:          vxnet,
 	}, nil
 }
 

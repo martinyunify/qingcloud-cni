@@ -26,14 +26,7 @@ type VPC struct {
 type Endpoint struct {
 	NetworkID  string
 	EndpointID string
-	Interface  *EndpointInterface
-	Options    map[string]interface{}
-}
-
-type EndpointInterface struct {
-	Address     *net.IPAddr
-	AddressIPv6 *net.IPAddr
-	MacAddress  *net.HardwareAddr
+	Address    string
 }
 
 //Router router struct

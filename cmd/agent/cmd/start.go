@@ -47,7 +47,7 @@ var startCmd = &cobra.Command{
 			log.Error(err)
 		}
 		log.Debugf("Nic Manager is spawned")
-		msg, err := messages.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"))
+		msg, err := messages.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"), viper.GetString("iface"), viper.GetStringSlice("vxnet"))
 		if err != nil {
 			log.Errorf("Invalid QingCloud configuration: %v", err)
 			return

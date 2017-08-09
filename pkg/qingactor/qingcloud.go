@@ -1,11 +1,17 @@
 package qingactor
 
 import (
+	"fmt"
 	"github.com/AsynkronIT/protoactor-go/actor"
 	log "github.com/sirupsen/logrus"
 	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-sdk-go/config"
 	"github.com/yunify/qingcloud-sdk-go/service"
+	"io/ioutil"
+)
+
+const (
+	instanceIDFile = "/etc/qingcloud/instance-id"
 )
 
 //QingCloudActor QingCloudService Actor
@@ -14,6 +20,10 @@ type QingCloudActor struct {
 	vxNetStub  *actor.PID
 	nicStub    *actor.PID
 	zone       string
+}
+
+func NewQingCloudActor() actor.Actor {
+	return &QingCloudActor{}
 }
 
 //Stop stop all of actors
@@ -73,6 +83,7 @@ func (qactor *QingCloudActor) Receive(context actor.Context) {
 
 		props = actor.FromInstance(&NicActor{nicStub: nicStub, zone: qactor.zone})
 		qactor.nicStub = actor.Spawn(props)
+		log.Debugf("QingCloud sdk is initialized.")
 
 		context.PushBehavior(qactor.ProcessMsg)
 	}
@@ -82,12 +93,20 @@ func (qactor *QingCloudActor) Receive(context actor.Context) {
 func (qactor *QingCloudActor) ProcessMsg(context actor.Context) {
 	switch msg := context.Message().(type) {
 	case CreateVxNetMessage:
-		qactor.vxNetStub.Tell(msg)
-	case messages.AllocateNicMessage:
+		qactor.vxNetStub.Request(msg, context.Sender())
+	case CreateNicMessage:
 		qactor.nicStub.Request(msg, context.Sender())
-	case messages.DeleteNicMessage:
+	case DeleteNicMessage:
 		qactor.nicStub.Request(msg, context.Sender())
 	case *actor.Stopping:
 		qactor.Stop()
 	}
+}
+
+func loadInstanceID() (string, error) {
+	content, err := ioutil.ReadFile(instanceIDFile)
+	if err != nil {
+		return "", fmt.Errorf("Load instance-id from %s error: %v", instanceIDFile, err)
+	}
+	return string(content), nil
 }

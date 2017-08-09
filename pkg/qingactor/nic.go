@@ -6,7 +6,6 @@ import (
 	"github.com/AsynkronIT/protoactor-go/actor"
 	log "github.com/sirupsen/logrus"
 	"github.com/yunify/qingcloud-cni/pkg/common"
-	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-sdk-go/service"
 )
 
@@ -18,23 +17,22 @@ type NicActor struct {
 
 //CreateNicMessage create nic message
 type CreateNicMessage struct {
-	NetworkID  string
-	EndpointID string
-	Address    string
+	NetworkID string
+	Nicname   string
 }
 
 //CreateNicReplyMessage create vxnet reply message
 type CreateNicReplyMessage struct {
-	err error
-	nic common.Endpoint
+	Err error
+	Nic common.Endpoint
 }
 
 type DeleteNicMessage struct {
-	nic common.Endpoint
+	Nic string
 }
 
 type DeleteNicReplyMessage struct {
-	err error
+	Err error
 }
 
 type DescribeNicMessage struct {
@@ -46,44 +44,79 @@ type DescirbeNicReplyMessage struct {
 }
 
 //Receive message handler function
-func (nic *NicActor) Receive(context actor.Context) {
+func (nicactor *NicActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
-	case messages.AllocateNicMessage:
+	case CreateNicMessage:
 		count := 1
 		request := service.CreateNicsInput{
 			Count:   &count,
-			NICName: &msg.Name,
+			NICName: &msg.Nicname,
 			VxNet:   &msg.NetworkID,
 		}
-		result, err := nic.nicStub.CreateNics(&request)
+		result, err := nicactor.nicStub.CreateNics(&request)
 		reply := CreateNicReplyMessage{}
 		if err != nil || *result.RetCode != 0 {
-			reply.err = err
+			reply.Err = err
 			if err == nil {
-				reply.err = fmt.Errorf("Failed to create nic:%s", *result.Message)
+				reply.Err = fmt.Errorf("Failed to create nic:%s", *result.Message)
 			}
-			log.Error(reply.err)
+			log.Error(reply.Err)
+			context.Respond(reply)
+			return
 		} else {
 			nic := result.Nics[0]
-			reply.nic = common.Endpoint{
+			reply.Nic = common.Endpoint{
 				NetworkID:  msg.NetworkID,
 				EndpointID: *nic.NICID,
+				Address:    *nic.PrivateIP,
 			}
+
+			instanceid, err := loadInstanceID()
+			if err != nil {
+				reply.Err = fmt.Errorf("Failed to load instanceid: %v", err)
+				log.Error(reply.Err)
+				context.Respond(reply)
+				return
+			}
+			request := service.AttachNicsInput{
+				Nics:     []*string{nic.NICID},
+				Instance: &instanceid,
+			}
+			result, err := nicactor.nicStub.AttachNics(&request)
+			if err != nil || *result.RetCode != 0 {
+				reply.Err = err
+				context.Respond(reply)
+				return
+			}
+			context.Respond(reply)
+
 		}
-		context.Respond(reply)
 	case DeleteNicMessage:
-		request := service.DeleteNicsInput{
-			Nics: []*string{&msg.nic.EndpointID},
+		request := service.DetachNicsInput{
+			Nics: []*string{&msg.Nic},
 		}
-		result, err := nic.nicStub.DeleteNics(&request)
-		if err == nil {
-			err = fmt.Errorf("Failed to delete nic: %s", result.Message)
+		reply := DeleteNicReplyMessage{}
+
+		result, err := nicactor.nicStub.DetachNics(&request)
+		if err != nil || *result.RetCode != 0 {
+			reply.Err = err
+			if reply.Err == nil {
+				reply.Err = fmt.Errorf("Failed to detach nic:%s", *result.Message)
+			}
+			context.Respond(reply)
+			return
+		} else {
+			request := service.DeleteNicsInput{
+				Nics: []*string{&msg.Nic},
+			}
+			result, err := nicactor.nicStub.DeleteNics(&request)
+			if err != nil || *result.RetCode != 0 {
+				reply.Err = err
+				if reply.Err == nil {
+					err = fmt.Errorf("Failed to delete nic: %s", result.Message)
+				}
+			}
+			context.Respond(reply)
 		}
-		reply := DeleteNicReplyMessage{
-			err: err,
-		}
-		context.Respond(reply)
-	case DescribeNicMessage:
-		request := service.DescribeNicsInput{}
 	}
 }
