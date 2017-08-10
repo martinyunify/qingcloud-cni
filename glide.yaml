@@ -20,3 +20,5 @@ import:
   - pkg/ns
   - pkg/ip
 - package: github.com/vishvananda/netlink
+- package: github.com/jolestar/go-commons-pool
+  version: ~1.1.2
