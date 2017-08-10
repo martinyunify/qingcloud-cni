@@ -57,7 +57,8 @@ func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 		log.Debugf("Allocate new interface.%s", response.Nic.EndpointID)
 	case *messages.DeleteNicMessage:
 		result, err := manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
-			Nic: msg.Nicid,
+			Nic:     msg.Nicid,
+			NicName: msg.Nicname,
 		}, 30*time.Second).Result()
 		reply := result.(qingactor.DeleteNicReplyMessage)
 		if err != nil || reply.Err != nil {

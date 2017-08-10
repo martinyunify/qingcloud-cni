@@ -26,4 +26,5 @@ message GetGatewayReplyMessage {
 
 message DeleteNicMessage {
     string nicid = 1;
+    string nicname = 2;
 }

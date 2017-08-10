@@ -34,7 +34,8 @@ type CreateNicReplyMessage struct {
 }
 
 type DeleteNicMessage struct {
-	Nic string
+	Nic     string
+	NicName string
 }
 
 type DeleteNicReplyMessage struct {
@@ -106,10 +107,31 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 		log.Debugf("Attached nic %s to host",*nic.NICID)
 
 	case DeleteNicMessage:
+		reply := DeleteNicReplyMessage{}
+
+		if msg.Nic == "" && msg.NicName != "" {
+			request := service.DescribeNicsInput{
+				NICName: &msg.NicName,
+			}
+			result, err := nicactor.nicStub.DescribeNics(&request)
+			if err != nil {
+				reply.Err = err
+				context.Respond(reply)
+				return
+			}
+			if *result.RetCode != 0 {
+				reply.Err = fmt.Errorf("Failed to get nic id from nic name: %s", result.Message)
+				context.Respond(reply)
+				return
+			}
+			if len(result.NICSet) > 0 {
+				msg.Nic = *result.NICSet[0].NICID
+			}
+		}
+
 		request := service.DetachNicsInput{
 			Nics: []*string{&msg.Nic},
 		}
-		reply := DeleteNicReplyMessage{}
 
 		detresult,err :=nicactor.nicStub.DetachNics(&request)
 		if err != nil || *detresult.RetCode != 0{
