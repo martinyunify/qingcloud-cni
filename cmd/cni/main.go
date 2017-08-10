@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"github.com/yunify/qingcloud-cni/pkg/messages"
+	"github.com/yunify/qingcloud-cni/pkg/utils"
 
 	"encoding/json"
 	"fmt"
@@ -17,8 +18,8 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"time"
 	"syscall"
+	"time"
 )
 
 // PluginConf is whatever you expect your configuration json to be. This is whatever
@@ -26,15 +27,16 @@ import (
 // runtime args, see CONVENTIONS.md in the CNI spec.
 type PluginConf struct {
 	types.NetConf // You may wish to not nest this type
-	Args struct {
+	Args          struct {
 		BindAddr string `json:"bindaddr,omitempty"`
 		ActorID  string `json:"actorid,omitempty"`
 	} `json:"args,omitempty"`
 }
 
 const (
-	DefaultDeleteTimeout = 30*time.Second
+	DefaultDeleteTimeout = 30 * time.Second
 )
+
 // parseConfig parses the supplied configuration (and prevResult) from stdin.
 func parseConfig(stdin []byte) (*PluginConf, error) {
 	conf := PluginConf{}
@@ -68,13 +70,13 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	//bind iface to ns
-	iface, err := LinkByMacAddr(response.EndpointID)
+	iface, err := utils.LinkByMacAddr(response.EndpointID)
 	if err != nil {
 		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, DefaultDeleteTimeout).Wait()
 		return fmt.Errorf("LinkByMacAddr err %s, delete Nic %s", err.Error(), response.EndpointID)
 	}
 
-	netns,err:=ns.GetNS(args.Netns)
+	netns, err := ns.GetNS(args.Netns)
 	if err != nil {
 		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, DefaultDeleteTimeout).Wait()
 		return fmt.Errorf("Failed to get network namespace")
@@ -92,7 +94,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	//configure nic
 	err = netns.Do(func(_ ns.NetNS) error {
-		nsiface , err := netlink.LinkByName(ifacename)
+		nsiface, err := netlink.LinkByName(ifacename)
 		if err != nil {
 			return fmt.Errorf("failed to get link by name %q: %v", ifacename, err)
 		}
@@ -109,16 +111,14 @@ func cmdAdd(args *skel.CmdArgs) error {
 		addrs, err := netlink.AddrList(nsiface, syscall.AF_INET)
 		if err == nil && len(addrs) > 0 {
 			for _, addr := range addrs {
-				err := netlink.AddrDel(iface, &addr)
+				err := netlink.AddrDel(nsiface, &addr)
 				if err != nil {
-					return fmt.Errorf("AddrDel err %s addr:%+v, Nic %s", err.Error(), addr, iface.Attrs().HardwareAddr)
+					return fmt.Errorf("AddrDel err %s addr:%+v, Nic %s", err.Error(), addr, nsiface.Attrs().HardwareAddr)
 				}
 			}
 		}
 
 		// add ip address
-
-
 
 		if err := netlink.LinkSetUp(nsiface); err != nil {
 			return fmt.Errorf("failed to set %q UP: %v", args.IfName, err)
@@ -155,8 +155,8 @@ func cmdDel(args *skel.CmdArgs) error {
 		if err := netlink.LinkSetDown(iface); err != nil {
 			return fmt.Errorf("Failed to set link down:%v", err)
 		}
-		if err = netlink.LinkSetNsPid(iface,os.Getpid()); err != nil {
-			return fmt.Errorf("Failed to set namespace to default ns, %v",err)
+		if err = netlink.LinkSetNsPid(iface, os.Getpid()); err != nil {
+			return fmt.Errorf("Failed to set namespace to default ns, %v", err)
 		}
 		return nil
 	})

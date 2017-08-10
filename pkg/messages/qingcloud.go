@@ -13,6 +13,10 @@ type QingcloudInitializeMessage struct {
 	Vxnet          []string
 }
 
+type QingCloudErrorMessage struct {
+	Err error
+}
+
 const (
 	PEK3A = iota
 	PEK3B
@@ -57,12 +61,4 @@ func NewQingcloudInitializeMessage(filepath string, zone string, iface string, v
 		Iface:          iface,
 		Vxnet:          vxnet,
 	}, nil
-}
-
-type GetNicsUnderVxnetMessage struct {
-	Hostid  string
-	Vxnetid []string
-}
-
-type GetNicsUnderVxnetReplyMessage struct {
 }

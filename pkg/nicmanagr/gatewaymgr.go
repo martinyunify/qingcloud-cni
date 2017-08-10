@@ -22,7 +22,7 @@ func (manager *GatewayManager) Receive(context actor.Context) {
 
 func (manager *GatewayManager) ProcessEvent(context actor.Context) {
 	switch msg := context.Message().(type) {
-	case messages.GetGatewayMessage:
+	case *messages.GetGatewayMessage:
 		if gateway, ok := manager.gateway[msg.Vxnet]; ok {
 			reply := messages.GetGatewayReplyMessage{
 				NetworkID:  gateway.NetworkID,

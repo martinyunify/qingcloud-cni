@@ -12,7 +12,7 @@ import (
 //VxNetActor vxnet qingcloud handler
 type VxNetActor struct {
 	vxNetStub *service.VxNetService
-	jobStub *service.JobService
+	jobStub   *service.JobService
 }
 
 //CreateVxNetMessage create vxnet, optional parameter NetworkID: identify network using custom id

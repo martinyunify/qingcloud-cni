@@ -6,13 +6,13 @@ import (
 	"github.com/AsynkronIT/protoactor-go/actor"
 	log "github.com/sirupsen/logrus"
 	"github.com/yunify/qingcloud-cni/pkg/common"
-	"github.com/yunify/qingcloud-sdk-go/service"
 	"github.com/yunify/qingcloud-sdk-go/client"
+	"github.com/yunify/qingcloud-sdk-go/service"
 
+	"github.com/yunify/qingcloud-cni/pkg/utils"
 	qcutil "github.com/yunify/qingcloud-sdk-go/utils"
-	"time"
-	"github.com/yunify/hostnic-cni/pkg"
 	"net"
+	"time"
 )
 
 //NicActor nic qingcloud handler
@@ -24,7 +24,6 @@ type NicActor struct {
 //CreateNicMessage create nic message
 type CreateNicMessage struct {
 	NetworkID string
-	Nicname   string
 }
 
 //CreateNicReplyMessage create vxnet reply message
@@ -35,7 +34,6 @@ type CreateNicReplyMessage struct {
 
 type DeleteNicMessage struct {
 	Nic     string
-	NicName string
 }
 
 type DeleteNicReplyMessage struct {
@@ -50,6 +48,11 @@ type DescribeNicMessage struct {
 type DescirbeNicReplyMessage struct {
 }
 
+const (
+	DefaultCreateNicTimeout = 30 * time.Second
+	DefaultDeleteNicTimeout = 30 * time.Second
+)
+
 //Receive message handler function
 func (nicactor *NicActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
@@ -57,7 +60,6 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 		count := 1
 		request := service.CreateNicsInput{
 			Count:   &count,
-			NICName: &msg.Nicname,
 			VxNet:   &msg.NetworkID,
 		}
 		result, err := nicactor.nicStub.CreateNics(&request)
@@ -77,7 +79,7 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 			EndpointID: *nic.NICID,
 			Address:    *nic.PrivateIP,
 		}
-		log.Debugf("Created nic %s",*nic.NICID)
+		log.Debugf("Created nic %s", *nic.NICID)
 
 		//attach nic to host
 		instanceid, err := loadInstanceID()
@@ -95,54 +97,34 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 		if err != nil || *attresult.RetCode != 0 {
 			reply.Err = err
 			if reply.Err == nil {
-				reply.Err = fmt.Errorf("failed to attach nic %s",attresult.Message)
+				reply.Err = fmt.Errorf("failed to attach nic %s", attresult.Message)
 			}
 		}
 
-		if err = nicactor.waitNic(*attresult.JobID,*nic.NICID,net.FlagUp); err != nil{
+		if err = nicactor.waitNic(*attresult.JobID, *nic.NICID, net.FlagUp); err != nil {
 			reply.Err = err
 		}
 
 		context.Respond(reply)
-		log.Debugf("Attached nic %s to host",*nic.NICID)
+		log.Debugf("Attached nic %s to host", *nic.NICID)
 
 	case DeleteNicMessage:
 		reply := DeleteNicReplyMessage{}
-
-		if msg.Nic == "" && msg.NicName != "" {
-			request := service.DescribeNicsInput{
-				NICName: &msg.NicName,
-			}
-			result, err := nicactor.nicStub.DescribeNics(&request)
-			if err != nil {
-				reply.Err = err
-				context.Respond(reply)
-				return
-			}
-			if *result.RetCode != 0 {
-				reply.Err = fmt.Errorf("Failed to get nic id from nic name: %s", result.Message)
-				context.Respond(reply)
-				return
-			}
-			if len(result.NICSet) > 0 {
-				msg.Nic = *result.NICSet[0].NICID
-			}
-		}
 
 		request := service.DetachNicsInput{
 			Nics: []*string{&msg.Nic},
 		}
 
-		detresult,err :=nicactor.nicStub.DetachNics(&request)
-		if err != nil || *detresult.RetCode != 0{
+		detresult, err := nicactor.nicStub.DetachNics(&request)
+		if err != nil || *detresult.RetCode != 0 {
 			reply.Err = err
 			if reply.Err == nil {
-				reply.Err=fmt.Errorf("Failed to detach nic %s",detresult.Message)
+				reply.Err = fmt.Errorf("Failed to detach nic %s", detresult.Message)
 			}
 			context.Respond(reply)
 			return
 		}
-		if err = client.WaitJob(nicactor.jobStub, *detresult.JobID, 25*time.Second, 5*time.Second);err != nil {
+		if err = client.WaitJob(nicactor.jobStub, *detresult.JobID, 25*time.Second, 5*time.Second); err != nil {
 			reply.Err = err
 			context.Respond(reply)
 			return
@@ -162,14 +144,14 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 	}
 }
 
-func (nicactor *NicActor) waitNic(jobid string,nicID string,status net.Flags) error {
+func (nicactor *NicActor) waitNic(jobid string, nicID string, status net.Flags) error {
 	log.Debugf("Wait for nic %v", nicID)
 	err := qcutil.WaitForSpecific(func() bool {
-		link, err := pkg.LinkByMacAddr(nicID)
+		link, err := utils.LinkByMacAddr(nicID)
 		if err != nil {
 			return false
 		}
-		if link.Attrs().Flags  | status != 0{
+		if link.Attrs().Flags|status != 0 {
 			log.Debugf("Find link %s %s", link.Attrs().Name, nicID)
 			return true
 		}

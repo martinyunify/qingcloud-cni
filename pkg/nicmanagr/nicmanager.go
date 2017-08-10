@@ -37,14 +37,14 @@ func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 		result, err := manager.qingStub.RequestFuture(qingactor.CreateNicMessage{
 			NetworkID: manager.vxnet[0],
 			Nicname:   msg.Name,
-		}, 30*time.Second).Result()
+		}, qingactor.DefaultCreateNicTimeout).Result()
 		response := result.(qingactor.CreateNicReplyMessage)
 
 		if err != nil || response.Err != nil {
 			manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
 				Nic: response.Nic.EndpointID,
-			}, 30*time.Second).Wait()
-			log.Errorf("Failed to create new nic: %v,%v", err,response.Err)
+			}, qingactor.DefaultDeleteNicTimeout).Wait()
+			log.Errorf("Failed to create new nic: %v,%v", err, response.Err)
 			ctx.Respond(&messages.AllocateNicReplyMessage{})
 			return
 		}
@@ -59,7 +59,7 @@ func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 		result, err := manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
 			Nic:     msg.Nicid,
 			NicName: msg.Nicname,
-		}, 30*time.Second).Result()
+		}, qingactor.DefaultDeleteNicTimeout).Result()
 		reply := result.(qingactor.DeleteNicReplyMessage)
 		if err != nil || reply.Err != nil {
 			log.Errorf("Failed to delete nic: %v,%v", err, result)

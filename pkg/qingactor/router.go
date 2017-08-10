@@ -9,8 +9,7 @@ import (
 //RouterActor Router actor for qingcloud
 type RouterActor struct {
 	routerStub *service.RouterService
-	jobStub *service.JobService
-
+	jobStub    *service.JobService
 }
 
 //JoinRouterMessage join Router and allocate vxnet
