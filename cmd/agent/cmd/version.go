@@ -17,21 +17,21 @@ package cmd
 import (
 	"fmt"
 
+	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/spf13/cobra"
 	"github.com/yunify/qingcloud-cni/pkg/version"
-	cniversion "github.com/containernetworking/cni/pkg/version"
 )
 
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Version of qingcloud cni plugin",
-	Long: `Detailed version of Qingcloud cni plugin and its dependencies`,
+	Long:  `Detailed version of Qingcloud cni plugin and its dependencies`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("QingCloud CNI plugin version: %s\n", version.VERSION)
-		fmt.Printf("Git revisions: %s\n",version.GIT_SHA1)
-		fmt.Printf("CNI plugin spec version: %s \n",cniversion.Current())
-		fmt.Printf("Build label: %s\n",version.BUILD_LABEL)
+		fmt.Printf("Git revisions: %s\n", version.GIT_SHA1)
+		fmt.Printf("CNI plugin spec version: %s \n", cniversion.Current())
+		fmt.Printf("Build label: %s\n", version.BUILD_LABEL)
 	},
 }
 

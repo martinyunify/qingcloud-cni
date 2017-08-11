@@ -298,7 +298,7 @@ func (state *MyActor) Receive(context actor.Context) {
 }
 
 func main() {
-    remote.Start("localhost:8090")
+    remote.StartServer("localhost:8090")
 
     pid := actor.SpawnTemplate(&MyActor{})
     message := &messages.Echo{Message: "hej", Sender: pid}
@@ -328,10 +328,11 @@ func (*MyActor) Receive(context actor.Context) {
 }
 
 func main() {
-    remote.Start("localhost:8091")
+    remote.StartServer("localhost:8091")
+    pid := actor.SpawnTemplate(&MyActor{})
 
     //register a name for our local actor so that it can be discovered remotely
-    remote.Register("hello", actor.FromInstance(&MyActor{}))
+    actor.ProcessRegistry.Register("myactor", pid)
     console.ReadLine()
 }
 ```

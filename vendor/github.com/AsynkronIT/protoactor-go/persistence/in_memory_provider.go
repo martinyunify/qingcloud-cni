@@ -1,50 +1,35 @@
 package persistence
 
-import "github.com/golang/protobuf/proto"
+import "github.com/gogo/protobuf/proto"
 
-type snapshotEntry struct {
-	eventIndex int
-	snapshot   proto.Message
+type NoSnapshotSupport struct {
+}
+
+func (provider *NoSnapshotSupport) GetSnapshotInterval() int {
+	return 0 //snapshotting is disabled
+}
+
+func (provider *NoSnapshotSupport) GetPersistSnapshot(actorName string) func(snapshot interface{}) {
+	return nil
+}
+
+func (provider *NoSnapshotSupport) GetSnapshot(actorName string) (interface{}, bool) {
+	return nil, false
 }
 
 type InMemoryProvider struct {
-	snapshotInterval int
-	snapshots        map[string]*snapshotEntry  // actorName -> a snapshot entry
-	events           map[string][]proto.Message // actorName -> a list of events
+	*NoSnapshotSupport
+	events []proto.Message //fake database entries, only for a single actor
 }
 
-func NewInMemoryProvider(snapshotInterval int) *InMemoryProvider {
-	return &InMemoryProvider{
-		snapshotInterval: snapshotInterval,
-		snapshots:        make(map[string]*snapshotEntry),
-		events:           make(map[string][]proto.Message),
-	}
-}
+var InMemory *InMemoryProvider = &InMemoryProvider{}
 
-func (provider *InMemoryProvider) Restart() {}
-
-func (provider *InMemoryProvider) GetSnapshotInterval() int {
-	return provider.snapshotInterval
-}
-
-func (provider *InMemoryProvider) GetSnapshot(actorName string) (snapshot interface{}, eventIndex int, ok bool) {
-	entry, ok := provider.snapshots[actorName]
-	if !ok {
-		return nil, 0, false
-	}
-	return entry.snapshot, entry.eventIndex, true
-}
-
-func (provider *InMemoryProvider) PersistSnapshot(actorName string, eventIndex int, snapshot proto.Message) {
-	provider.snapshots[actorName] = &snapshotEntry{eventIndex: eventIndex, snapshot: snapshot}
-}
-
-func (provider *InMemoryProvider) GetEvents(actorName string, eventIndexStart int, callback func(e interface{})) {
-	for _, e := range provider.events[actorName][eventIndexStart:] {
+func (provider *InMemoryProvider) GetEvents(actorName string, callback func(event interface{})) {
+	for _, e := range provider.events {
 		callback(e)
 	}
 }
 
 func (provider *InMemoryProvider) PersistEvent(actorName string, eventIndex int, event proto.Message) {
-	provider.events[actorName] = append(provider.events[actorName], event)
+	provider.events = append(provider.events, event)
 }
