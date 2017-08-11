@@ -6,19 +6,20 @@ import (
 	"github.com/yunify/qingcloud-cni/pkg/messages"
 )
 
+
 type GatewayManager struct {
 	gateway  map[string]common.Endpoint
 	iface    common.Endpoint
 	qingstub *actor.PID
 }
 
-func (manager *GatewayManager) Receive(context actor.Context) {
-	switch msg := context.Message().(type) {
-	case messages.QingcloudInitializeMessage:
-
-		manager.loadDefaultGateway(msg.Iface)
-	}
-}
+//func (manager *GatewayManager) Receive(context actor.Context) {
+//	switch msg := context.Message().(type) {
+//	case ResourcePoolInitMessage:
+//		msg.
+//		//manager.loadDefaultGateway(msg.Iface)
+//	}
+//}
 
 func (manager *GatewayManager) ProcessEvent(context actor.Context) {
 	switch msg := context.Message().(type) {

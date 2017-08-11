@@ -5,46 +5,48 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-cni/pkg/qingactor"
-	"time"
+	"fmt"
+	"github.com/AsynkronIT/protoactor-go/mailbox"
 )
 
+const NicManagerActorName = "NicManager"
+func init(){
+	props := actor.FromProducer(NewNicManager).WithMailbox(mailbox.Bounded(1000))
+	_, err := actor.SpawnNamed(props, NicManagerActorName)
+	if err != nil {
+		log.Error(err)
+	} else {
+		log.Debugf("Nic Manager is spawned")
+	}
+}
 type NicManager struct {
 	iface    string
 	vxnet    []string
 	qingStub *actor.PID
+	policy *CreationPolicy
 }
 
 func (manager *NicManager) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
-	case messages.QingcloudInitializeMessage:
-		props := actor.FromProducer(qingactor.NewQingCloudActor)
-		var err error
-		manager.qingStub, err = actor.SpawnNamed(props, "qingcloud")
-		if err != nil {
-			log.Errorf("failed to spawn qingcloud actor: %v", err)
-		}
+	case ResourcePoolInitMessage:
 		manager.vxnet = msg.Vxnet
-		manager.qingStub.Tell(msg)
-
+		var err error
+		manager.policy,err = NewCreationPolicy(len(manager.vxnet),msg.Policy)
+		if err != nil {
+			log.Error(fmt.Errorf("Failed to set creation policy %v",err))
+			return
+		}
+		manager.qingStub = actor.NewLocalPID(qingactor.QingCloudActorName)
 		ctx.PushBehavior(manager.ProcessMsg)
-		log.Debugf("resource stub is activated")
+		log.Debugf("Nicmanager is activated")
 	}
 }
 
 func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *messages.AllocateNicMessage:
-		result, err := manager.qingStub.RequestFuture(qingactor.CreateNicMessage{
-			NetworkID: manager.vxnet[0],
-			Nicname:   msg.Name,
-		}, qingactor.DefaultCreateNicTimeout).Result()
-		response := result.(qingactor.CreateNicReplyMessage)
-
+		response,err:= manager.createNewNic(msg,1)
 		if err != nil || response.Err != nil {
-			manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
-				Nic: response.Nic.EndpointID,
-			}, qingactor.DefaultDeleteNicTimeout).Wait()
-			log.Errorf("Failed to create new nic: %v,%v", err, response.Err)
 			ctx.Respond(&messages.AllocateNicReplyMessage{})
 			return
 		}
@@ -58,7 +60,6 @@ func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 	case *messages.DeleteNicMessage:
 		result, err := manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
 			Nic:     msg.Nicid,
-			NicName: msg.Nicname,
 		}, qingactor.DefaultDeleteNicTimeout).Result()
 		reply := result.(qingactor.DeleteNicReplyMessage)
 		if err != nil || reply.Err != nil {
@@ -67,11 +68,38 @@ func (manager *NicManager) ProcessMsg(ctx actor.Context) {
 		ctx.Respond(msg)
 		log.Debugf("Delete nic.%s", msg.Nicid)
 	case *actor.Stopping:
-		manager.qingStub.GracefulStop()
 		ctx.PopBehavior()
 	}
 }
 
 func NewNicManager() actor.Actor {
 	return &NicManager{}
+}
+
+
+func (manager *NicManager) createNewNic(msg *messages.AllocateNicMessage,retry int)(*qingactor.CreateNicReplyMessage,error){
+	var err error
+	for i := 0 ;i < retry; i ++ {
+		var result interface{}
+		result, err = manager.qingStub.RequestFuture(qingactor.CreateNicMessage{
+			NetworkID: manager.vxnet[manager.policy.GetNextItem()],
+			Nicname: msg.Name,
+		}, qingactor.DefaultCreateNicTimeout).Result()
+		response := result.(qingactor.CreateNicReplyMessage)
+
+		if err != nil || response.Err != nil {
+			manager.qingStub.RequestFuture(qingactor.DeleteNicMessage{
+				Nic: response.Nic.EndpointID,
+			}, qingactor.DefaultDeleteNicTimeout).Wait()
+			err = fmt.Errorf("Failed to create new nic: %v,%v", err, response.Err)
+			log.Error(err)
+			manager.policy.UpdateResult(err)
+			continue
+		}
+
+		manager.policy.UpdateResult(err)
+		return &response,err
+	}
+
+	return nil,err
 }

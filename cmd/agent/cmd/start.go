@@ -16,17 +16,16 @@ package cmd
 
 import (
 	"github.com/AsynkronIT/protoactor-go/actor"
-	"github.com/AsynkronIT/protoactor-go/mailbox"
 	"github.com/AsynkronIT/protoactor-go/remote"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/yunify/qingcloud-cni/pkg/messages"
 	"github.com/yunify/qingcloud-cni/pkg/nicmanagr"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
+	"github.com/yunify/qingcloud-cni/pkg/qingactor"
 )
 
 // startCmd represents the start command
@@ -41,19 +40,19 @@ var startCmd = &cobra.Command{
 		runtime.GC()
 
 		remote.Start("0.0.0.0:31080", remote.WithEndpointWriterBatchSize(10000))
-		props := actor.FromProducer(nicmanagr.NewNicManager).WithMailbox(mailbox.Bounded(1000))
-		pid, err := actor.SpawnNamed(props, "nicmanager")
-		if err != nil {
-			log.Error(err)
-		}
-		log.Debugf("Nic Manager is spawned")
-		msg, err := messages.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"), viper.GetString("iface"), viper.GetStringSlice("vxnet"))
+
+		msg, err := qingactor.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"))
 		if err != nil {
 			log.Errorf("Invalid QingCloud configuration: %v", err)
 			return
 		}
+		pid := actor.NewLocalPID(qingactor.QingCloudActorName)
 		pid.Tell(*msg)
-		log.Debugf("Nic Manager is initialized")
+
+		poolInitMsg, err := nicmanagr.NewResourcePoolInitMessage(viper.GetStringSlice("vxnet"),viper.GetString("policy"))
+
+		pid = actor.NewLocalPID(nicmanagr.NicManagerActorName)
+		pid.Tell(*poolInitMsg)
 
 		//event loop
 		systemCh := make(chan os.Signal, 4)
@@ -85,6 +84,7 @@ func init() {
 	startCmd.Flags().String("zone", "pek3a", "QingCloud zone")
 	startCmd.Flags().StringSlice("vxnet", []string{"vxnet-xxxxxxx"}, "vxnet id list")
 	startCmd.Flags().String("iface", "eth0", "Default nic which is used by host and will not be deleted")
+	startCmd.Flags().String("policy","FailRotate", "policy of Selecting which vxnet to create nic from.(FailRotate,RoundRotate,Random)")
 	viper.BindPFlags(startCmd.Flags())
 }
 

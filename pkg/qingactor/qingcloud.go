@@ -8,6 +8,7 @@ import (
 	"github.com/yunify/qingcloud-sdk-go/config"
 	"github.com/yunify/qingcloud-sdk-go/service"
 	"io/ioutil"
+	"os"
 )
 
 const (
@@ -15,7 +16,58 @@ const (
 	QingCloudActorName = "QingCloudActor"
 )
 
+var QingCloudPid *actor.PID
 
+func init(){
+	props := actor.FromProducer(NewQingCloudActor)
+	var err error
+	QingCloudPid,err =actor.SpawnNamed(props, QingCloudActorName)
+	if err != nil {
+		log.Errorf("failed to spawn qingcloud actor: %v", err)
+	}
+}
+
+type QingcloudInitializeMessage struct {
+	QingAccessFile string
+	Zone           string
+}
+
+const (
+	PEK3A = iota
+	PEK3B
+	GD1
+	GD2A
+	SHA1
+)
+
+var zoneMap = map[string]uint{
+	"pek3a": PEK3A,
+	"pek3b": PEK3B,
+	"gd1":   GD1,
+	"gd2a":  GD2A,
+	"sha1":  SHA1,
+}
+
+func NewQingcloudInitializeMessage(filepath string, zone string) (*QingcloudInitializeMessage, error) {
+	if filepath == "" {
+		return nil, fmt.Errorf("Access File Path is emtpy")
+	}
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("Access File does not exist %s", filepath)
+	}
+	if zone == "" {
+		return nil, fmt.Errorf("Zone is empty")
+	}
+	if _, ok := zoneMap[zone]; !ok {
+		return nil, fmt.Errorf("Zone is invalid %s", zone)
+	}
+
+
+	return &QingcloudInitializeMessage{
+		Zone:           zone,
+		QingAccessFile: filepath,
+	}, nil
+}
 
 //QingCloudActor QingCloudService Actor
 type QingCloudActor struct {
@@ -45,7 +97,7 @@ func (qactor *QingCloudActor) Stop() {
 	}
 }
 
-func (qactor *QingCloudActor) Start(msg *messages.QingcloudInitializeMessage) {
+func (qactor *QingCloudActor) Start(msg *QingcloudInitializeMessage) {
 	var err error
 	newConfig, err := config.NewDefault()
 	if err != nil {
@@ -99,15 +151,15 @@ func (qactor *QingCloudActor) Start(msg *messages.QingcloudInitializeMessage) {
 
 func (qactor *QingCloudActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
-	case messages.QingcloudInitializeMessage:
+	case QingcloudInitializeMessage:
 		qactor.Start(&msg)
 		context.PushBehavior(qactor.ProcessMsg)
-	default:
-		context.Respond(messages.QingCloudErrorMessage{Err: fmt.Errorf("QingCloud Sdk is not initialized.")})
+	case CreateVxNetMessage,CreateNicMessage:
+		context.Respond(messages.QingCloudErrorMessage{Err: fmt.Errorf("QingCloud Sdk is not initialized.msg:%v",msg)})
 	}
 }
 
-//Receive REceive actor messages
+//Receive actor messages
 func (qactor *QingCloudActor) ProcessMsg(context actor.Context) {
 	switch msg := context.Message().(type) {
 	case CreateVxNetMessage:
@@ -115,13 +167,15 @@ func (qactor *QingCloudActor) ProcessMsg(context actor.Context) {
 	case CreateNicMessage:
 		qactor.nicStub.Request(msg, context.Sender())
 	case DeleteNicMessage:
-		qactor.nicStub.Request(msg, context.Sender())
-
-	case messages.QingcloudInitializeMessage:
+		qactor.nicStub.Request(msg,context.Sender())
+	case DeleteVxnetMessage:
+		qactor.vxNetStub.Request(msg,context.Sender())
+	case QingcloudInitializeMessage:
 		qactor.Stop()
 		qactor.Start(&msg)
 	case *actor.Stopping:
 		qactor.Stop()
+		context.PopBehavior()
 	}
 }
 
@@ -132,3 +186,5 @@ func loadInstanceID() (string, error) {
 	}
 	return string(content), nil
 }
+
+

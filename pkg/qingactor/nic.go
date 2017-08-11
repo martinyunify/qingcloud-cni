@@ -24,6 +24,7 @@ type NicActor struct {
 //CreateNicMessage create nic message
 type CreateNicMessage struct {
 	NetworkID string
+	Nicname   string
 }
 
 //CreateNicReplyMessage create vxnet reply message
@@ -34,6 +35,7 @@ type CreateNicReplyMessage struct {
 
 type DeleteNicMessage struct {
 	Nic     string
+	Nicname   string
 }
 
 type DeleteNicReplyMessage struct {
@@ -61,6 +63,7 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 		request := service.CreateNicsInput{
 			Count:   &count,
 			VxNet:   &msg.NetworkID,
+			NICName: &msg.Nicname,
 		}
 		result, err := nicactor.nicStub.CreateNics(&request)
 		reply := CreateNicReplyMessage{}
