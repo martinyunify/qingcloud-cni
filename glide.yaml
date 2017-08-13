@@ -20,3 +20,5 @@ import:
   - pkg/ns
   - pkg/ip
 - package: github.com/vishvananda/netlink
+- package: github.com/yunify/qingcloud-sdk-go
+  version: ~2.0.0-alpha.8
