@@ -111,7 +111,9 @@ func cmdAdd(args *skel.CmdArgs) error {
 	netiface := &current.Interface{Name: args.IfName, Mac: response.EndpointID, Sandbox: args.ContainerID}
 	nicIP:=net.ParseIP(response.Address)
 	_,ipNet,_:=net.ParseCIDR(gateway.NetworkCIDR)
+	numOfiface :=0
 	ipConfig := &current.IPConfig{
+		Interface: &numOfiface,
 		Address: net.IPNet{
 			IP: nicIP,
 			Mask: ipNet.Mask,
@@ -123,7 +125,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		Interfaces: []*current.Interface{netiface},
 		IPs: []*current.IPConfig{ipConfig},
 		Routes:[]*types.Route{
-			&types.Route{Dst: net.IPNet{IP: net.IPv4zero, Mask: net.IPv4Mask(0,0,0,0)}, GW: net.ParseIP(gateway.Gateway)},
+			&types.Route{Dst: net.IPNet{IP: net.IPv4zero, Mask:net.IPMask(net.IPv4zero)}, GW: net.ParseIP(gateway.Gateway)},
 		},
 	}
 
@@ -134,12 +136,12 @@ func cmdAdd(args *skel.CmdArgs) error {
 			return fmt.Errorf("failed to get link by name %q: %v", ifacename, err)
 		}
 
-		if err := netlink.LinkSetDown(nsiface); err != nil {
-			return fmt.Errorf("failed to set %q Down: %v", args.IfName, err)
-		}
-
 		if err := netlink.LinkSetName(nsiface, args.IfName); err != nil {
 			return fmt.Errorf("failed to setname %q: %v", args.IfName, err)
+		}
+
+		if err := netlink.LinkSetUp(nsiface); err != nil {
+			return fmt.Errorf("failed to set %q up: %v", args.IfName, err)
 		}
 
 		if err:= ipam.ConfigureIface(args.IfName,res); err != nil {
