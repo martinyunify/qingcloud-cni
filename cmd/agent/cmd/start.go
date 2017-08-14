@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"syscall"
 	"github.com/yunify/qingcloud-cni/pkg/qingactor"
+	actorlog "github.com/AsynkronIT/protoactor-go/log"
 )
 
 // startCmd represents the start command
@@ -41,6 +42,7 @@ var startCmd = &cobra.Command{
 
 		remote.Start("0.0.0.0:31080", remote.WithEndpointWriterBatchSize(10000))
 
+
 		msg, err := qingactor.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"))
 		if err != nil {
 			log.Errorf("Invalid QingCloud configuration: %v", err)
@@ -53,6 +55,10 @@ var startCmd = &cobra.Command{
 
 		pid = actor.NewLocalPID(nicmanagr.NicManagerActorName)
 		pid.Tell(*poolInitMsg)
+
+		gatewaymsg:=nicmanagr.InitGatewayMessage{Nsname:viper.GetString("gatewayns")}
+		pid = actor.NewLocalPID(nicmanagr.GatewayManagerActorName)
+		pid.Tell(gatewaymsg)
 
 		//event loop
 		systemCh := make(chan os.Signal, 4)
@@ -85,9 +91,9 @@ func init() {
 	startCmd.Flags().StringSlice("vxnet", []string{"vxnet-xxxxxxx"}, "vxnet id list")
 	startCmd.Flags().String("iface", "eth0", "Default nic which is used by host and will not be deleted")
 	startCmd.Flags().String("policy","FailRotate", "policy of Selecting which vxnet to create nic from.(FailRotate,RoundRotate,Random)")
+	startCmd.Flags().String("gatewayns","hostnic","gateway nic name")
 	viper.BindPFlags(startCmd.Flags())
+	log.SetLevel(log.DebugLevel)
+	actor.SetLogLevel(actorlog.DebugLevel)
 }
 
-func getDefaultIface() {
-
-}

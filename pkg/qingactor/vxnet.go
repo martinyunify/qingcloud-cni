@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yunify/qingcloud-cni/pkg/common"
 	"github.com/yunify/qingcloud-sdk-go/service"
+	"time"
 )
 
 //VxNetActor vxnet qingcloud handler
@@ -14,6 +15,10 @@ type VxNetActor struct {
 	vxNetStub *service.VxNetService
 	jobStub   *service.JobService
 }
+
+const(
+	DefaultQueryVxnetTimeout = 30 * time.Second
+)
 
 //CreateVxNetMessage create vxnet, optional parameter NetworkID: identify network using custom id
 type CreateVxNetMessage struct {
@@ -42,6 +47,7 @@ type DescribeVxnetMessage struct {
 
 type DescribeVxnetReplyMessage struct {
 	Err error
+	Networks []*common.Network
 }
 
 //Receive message handler function
@@ -101,6 +107,15 @@ func (vxnet *VxNetActor) Receive(context actor.Context) {
 			}
 		} else {
 			reply.Err = nil
+		}
+		for _,vxnet :=range result.VxNetSet{
+
+			reply.Networks = append(reply.Networks,&common.Network{
+				NetworkID:*vxnet.VxNetID,
+				NetworkName:*vxnet.VxNetName,
+				Pool: *vxnet.Router.IPNetwork,
+				Gateway:*vxnet.Router.ManagerIP,
+			})
 		}
 		context.Respond(reply)
 	}

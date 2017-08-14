@@ -43,16 +43,20 @@ type DeleteNicReplyMessage struct {
 }
 
 type DescribeNicMessage struct {
-	instanceid string
-	nicid      string
+	Instanceid string
+	Nicid      []*string
+	Nicname string
 }
 
-type DescirbeNicReplyMessage struct {
+type DescribeNicReplyMessage struct {
+	Err error
+	Endpoints []*common.Endpoint
 }
 
 const (
 	DefaultCreateNicTimeout = 30 * time.Second
 	DefaultDeleteNicTimeout = 30 * time.Second
+	DefaultQueryNicTimeout = 30 * time.Second
 )
 
 //Receive message handler function
@@ -142,6 +146,38 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 			if reply.Err == nil {
 				reply.Err = fmt.Errorf("Failed to delete nic: %s", delresult.Message)
 			}
+		}
+		context.Respond(reply)
+	case DescribeNicMessage:
+		reply:= DescribeNicReplyMessage{}
+
+		request := service.DescribeNicsInput{}
+		if msg.Nicname != "" {
+			request.NICName = &msg.Nicname
+		}
+		if len(msg.Nicid) > 0 {
+			request.Nics = msg.Nicid
+		}
+		if msg.Instanceid != ""{
+			request.Instances=[]*string{&msg.Instanceid}
+		}
+		descriResult, err:= nicactor.nicStub.DescribeNics(&request)
+		if err != nil {
+			reply.Err = fmt.Errorf("Failed to describe nic:%v",err)
+			context.Respond(reply)
+			return
+		}
+		if *descriResult.RetCode != 0{
+			reply.Err = fmt.Errorf("Failed to describe nic: %s",*descriResult.Message)
+			context.Respond(reply)
+			return
+		}
+		for _,nic := range descriResult.NICSet{
+			reply.Endpoints=append(reply.Endpoints,&common.Endpoint{
+				Address:*nic.PrivateIP,
+				EndpointID:*nic.NICID,
+				NetworkID: *nic.VxNetID,
+			})
 		}
 		context.Respond(reply)
 	}

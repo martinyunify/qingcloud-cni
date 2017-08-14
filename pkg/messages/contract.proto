@@ -19,9 +19,9 @@ message GetGatewayMessage {
 }
 
 message GetGatewayReplyMessage {
-    string NetworkID = 1;
-    string EndpointID = 2;
-    string Address = 3;
+    string NetworkCIDR = 1;
+    string Gateway = 2;
+    string NetworkID = 3;
 }
 
 message DeleteNicMessage {

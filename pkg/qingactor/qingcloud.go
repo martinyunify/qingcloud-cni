@@ -154,7 +154,9 @@ func (qactor *QingCloudActor) Receive(context actor.Context) {
 	case QingcloudInitializeMessage:
 		qactor.Start(&msg)
 		context.PushBehavior(qactor.ProcessMsg)
-	case CreateVxNetMessage,CreateNicMessage:
+	case *actor.Started:
+
+	default:
 		context.Respond(messages.QingCloudErrorMessage{Err: fmt.Errorf("QingCloud Sdk is not initialized.msg:%v",msg)})
 	}
 }
@@ -169,6 +171,10 @@ func (qactor *QingCloudActor) ProcessMsg(context actor.Context) {
 	case DeleteNicMessage:
 		qactor.nicStub.Request(msg,context.Sender())
 	case DeleteVxnetMessage:
+		qactor.vxNetStub.Request(msg,context.Sender())
+	case DescribeNicMessage:
+		qactor.nicStub.Request(msg,context.Sender())
+	case DescribeVxnetMessage:
 		qactor.vxNetStub.Request(msg,context.Sender())
 	case QingcloudInitializeMessage:
 		qactor.Stop()

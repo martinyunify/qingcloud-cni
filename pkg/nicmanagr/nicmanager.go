@@ -7,6 +7,7 @@ import (
 	"github.com/yunify/qingcloud-cni/pkg/qingactor"
 	"fmt"
 	"github.com/AsynkronIT/protoactor-go/mailbox"
+	"time"
 )
 
 const NicManagerActorName = "NicManager"
@@ -19,6 +20,11 @@ func init(){
 		log.Debugf("Nic Manager is spawned")
 	}
 }
+
+const (
+	DefaultCreateNicTimeout = 60*time.Second
+	DefaultDeleteNicTimeout = 60*time.Second
+)
 type NicManager struct {
 	iface    string
 	vxnet    []string

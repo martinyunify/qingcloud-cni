@@ -1,21 +1,10 @@
 package common
 
-import (
-	"net"
-)
-
 type Network struct {
 	NetworkID   string
 	NetworkName string
-	Options     map[string]interface{}
-	Ipv4Data    *IPAMData
-}
-
-type IPAMData struct {
-	Pool         *net.IPNet
-	Gateway      *net.IPAddr
-	AddressSpace string
-	AuxAddresses map[string]*net.IPAddr
+	Pool        string
+	Gateway     string
 }
 
 type VPC struct {

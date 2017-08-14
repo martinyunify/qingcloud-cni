@@ -32,12 +32,11 @@ type LeaveRouterMessage struct {
 func (qactor *RouterActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	case JoinRouterMessage:
-		gatewayID := msg.network.Ipv4Data.Gateway.String()
 		request := service.JoinRouterInput{
 			VxNet:     &msg.network.NetworkID,
 			Router:    &msg.router.RouterID,
-			IPNetwork: &msg.network.Ipv4Data.AddressSpace,
-			ManagerIP: &gatewayID,
+			IPNetwork: &msg.network.Pool,
+			ManagerIP: &msg.network.Gateway,
 		}
 		qactor.routerStub.JoinRouter(&request)
 

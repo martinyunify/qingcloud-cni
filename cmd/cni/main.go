@@ -18,8 +18,10 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"syscall"
 	"time"
+	"github.com/yunify/qingcloud-cni/pkg/nicmanagr"
+
+	"github.com/containernetworking/plugins/pkg/ipam"
 )
 
 // PluginConf is whatever you expect your configuration json to be. This is whatever
@@ -29,7 +31,6 @@ type PluginConf struct {
 	types.NetConf // You may wish to not nest this type
 	Args          struct {
 		BindAddr string `json:"bindaddr,omitempty"`
-		ActorID  string `json:"actorid,omitempty"`
 	} `json:"args,omitempty"`
 }
 
@@ -55,10 +56,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	remote.Start("127.0.0.1:0", remote.WithEndpointWriterBatchSize(10000))
-	manager := actor.NewPID(conf.Args.BindAddr, conf.Args.ActorID)
+	manager := actor.NewPID(conf.Args.BindAddr, nicmanagr.NicManagerActorName)
 	result, err := manager.RequestFuture(&messages.AllocateNicMessage{
 		Name: args.ContainerID,
-	}, 60*time.Second).Result()
+	}, nicmanagr.DefaultCreateNicTimeout).Result()
 	if err != nil {
 		log.Errorf("Failed to get nic: %v", err)
 		return err
@@ -67,6 +68,22 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if response.EndpointID == "" {
 		log.Errorf("Failed to get nic: %v")
 		return fmt.Errorf("Failed to get nic: %v")
+	}
+
+	gatewaymgr := actor.NewPID(conf.Args.BindAddr,nicmanagr.GatewayManagerActorName)
+	result,err = gatewaymgr.RequestFuture(&messages.GetGatewayMessage{
+		Vxnet: response.NetworkID,
+	},nicmanagr.DefaultGetGatewayTimeout).Result()
+	if err != nil {
+		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, DefaultDeleteTimeout).Wait()
+		log.Errorf("Failed to get default gateway.%v",err)
+		return err
+	}
+	gateway := result.(*messages.GetGatewayReplyMessage)
+	if gateway.NetworkCIDR == ""{
+		manager.RequestFuture(&messages.DeleteNicMessage{Nicid: response.EndpointID}, DefaultDeleteTimeout).Wait()
+		log.Errorf("Failed to get default gateway. response is empty")
+		return err
 	}
 
 	//bind iface to ns
@@ -90,7 +107,25 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	ifacename := iface.Attrs().Name
 
-	//get Default gateway
+	//generate result
+	netiface := &current.Interface{Name: args.IfName, Mac: response.EndpointID, Sandbox: args.ContainerID}
+	nicIP:=net.ParseIP(response.Address)
+	_,ipNet,_:=net.ParseCIDR(gateway.NetworkCIDR)
+	ipConfig := &current.IPConfig{
+		Address: net.IPNet{
+			IP: nicIP,
+			Mask: ipNet.Mask,
+		},
+		Version: "4",
+		Gateway: net.ParseIP(gateway.Gateway),
+	}
+	res := &current.Result{
+		Interfaces: []*current.Interface{netiface},
+		IPs: []*current.IPConfig{ipConfig},
+		Routes:[]*types.Route{
+			&types.Route{Dst: net.IPNet{IP: net.IPv4zero, Mask: net.IPv4Mask(0,0,0,0)}, GW: net.ParseIP(gateway.Gateway)},
+		},
+	}
 
 	//configure nic
 	err = netns.Do(func(_ ns.NetNS) error {
@@ -107,21 +142,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 			return fmt.Errorf("failed to setname %q: %v", args.IfName, err)
 		}
 
-		// clean up addr conf
-		addrs, err := netlink.AddrList(nsiface, syscall.AF_INET)
-		if err == nil && len(addrs) > 0 {
-			for _, addr := range addrs {
-				err := netlink.AddrDel(nsiface, &addr)
-				if err != nil {
-					return fmt.Errorf("AddrDel err %s addr:%+v, Nic %s", err.Error(), addr, nsiface.Attrs().HardwareAddr)
-				}
-			}
-		}
-
-		// add ip address
-
-		if err := netlink.LinkSetUp(nsiface); err != nil {
-			return fmt.Errorf("failed to set %q UP: %v", args.IfName, err)
+		if err:= ipam.ConfigureIface(args.IfName,res); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -130,10 +152,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to configure interface %s, delete Nic %s", err.Error(), response.EndpointID)
 	}
 
-	//generate result
-	netiface := &current.Interface{Name: args.IfName, Mac: response.EndpointID, Sandbox: args.ContainerID}
-	ipConfig := &current.IPConfig{Address: net.IPNet{IP: net.ParseIP(response.Address)}}
-	res := &current.Result{Interfaces: []*current.Interface{netiface}, IPs: []*current.IPConfig{ipConfig}}
+
 
 	return types.PrintResult(res, conf.CNIVersion)
 }
@@ -144,7 +163,7 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 	remote.Start("127.0.0.1:0", remote.WithEndpointWriterBatchSize(10000))
-	manager := actor.NewPID(conf.Args.BindAddr, conf.Args.ActorID)
+	manager := actor.NewPID(conf.Args.BindAddr, nicmanagr.NicManagerActorName)
 
 	err = ns.WithNetNSPath(args.Netns, func(_ ns.NetNS) error {
 		ifName := args.IfName
@@ -152,6 +171,8 @@ func cmdDel(args *skel.CmdArgs) error {
 		if err != nil {
 			return fmt.Errorf("failed to lookup %q: %v", ifName, err)
 		}
+		manager.RequestFuture(&messages.DeleteNicMessage{Nicname: args.ContainerID,Nicid:iface.Attrs().HardwareAddr.String()}, DefaultDeleteTimeout).Wait()
+
 		if err := netlink.LinkSetDown(iface); err != nil {
 			return fmt.Errorf("Failed to set link down:%v", err)
 		}
@@ -161,14 +182,6 @@ func cmdDel(args *skel.CmdArgs) error {
 		return nil
 	})
 
-	if err != nil {
-		return err
-	}
-
-	err = manager.RequestFuture(&messages.DeleteNicMessage{Nicname: args.ContainerID}, DefaultDeleteTimeout).Wait()
-	if err != nil {
-		log.Errorf("Failed to delete nic from remote :%v", err)
-	}
 	return err
 }
 
