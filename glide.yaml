@@ -3,22 +3,34 @@ import:
 - package: github.com/AsynkronIT/protoactor-go
   subpackages:
   - actor
-  - remote
+  - log
   - mailbox
+  - remote
 - package: github.com/containernetworking/cni
-  version: ~0.6.0-rc1
+  version: ~0.6.0-rc2
   subpackages:
   - pkg/skel
+  - pkg/types
+  - pkg/types/current
   - pkg/version
-- package: github.com/spf13/cobra
-- package: github.com/spf13/viper
+- package: github.com/containernetworking/plugins
+  version: ~0.6.0-rc2
+  subpackages:
+  - pkg/ipam
+  - pkg/ns
+- package: github.com/gogo/protobuf
+  version: ~0.4.0
+  subpackages:
+  - proto
 - package: github.com/sirupsen/logrus
   version: ~1.0.2
-- package: github.com/containernetworking/plugins
-  version: ~0.6.0-rc1
-  subpackages:
-  - pkg/ns
-  - pkg/ip
+- package: github.com/spf13/cobra
+- package: github.com/spf13/viper
 - package: github.com/vishvananda/netlink
 - package: github.com/yunify/qingcloud-sdk-go
   version: ~2.0.0-alpha.8
+  subpackages:
+  - client
+  - config
+  - service
+  - utils
