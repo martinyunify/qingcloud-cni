@@ -2,7 +2,6 @@
 # GitHub viewer defaults to 8, change with ?ts=4 in URL
 
 # Vars describing project
-# TODO: reconcile the VERSION / REVISION with version_info generation
 NAME							= qingcloud-cni
 GIT_REPOSITORY					= github.com/yunify/qingcloud-cni
 

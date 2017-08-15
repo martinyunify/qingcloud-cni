@@ -32,7 +32,7 @@ import (
 // startCmd represents the start command
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start QingCloud container networking agent",
+	Short: "Start QingCloud agent",
 	Long: `QingCloud container networking agent is a daemon process which allocates and recollects nics resources.
 	`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -40,7 +40,7 @@ var startCmd = &cobra.Command{
 		runtime.GOMAXPROCS(runtime.NumCPU())
 		runtime.GC()
 
-		remote.Start("0.0.0.0:31080", remote.WithEndpointWriterBatchSize(10000))
+		remote.Start(viper.GetString("bindaddr"), remote.WithEndpointWriterBatchSize(10000))
 
 
 		msg, err := qingactor.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"))
@@ -92,6 +92,7 @@ func init() {
 	startCmd.Flags().String("iface", "eth0", "Default nic which is used by host and will not be deleted")
 	startCmd.Flags().String("policy","FailRotate", "policy of Selecting which vxnet to create nic from.(FailRotate,RoundRotate,Random)")
 	startCmd.Flags().String("gatewayns","hostnic","gateway nic name")
+	startCmd.Flags().String("bindaddr","0.0.0.0:31080", "bind address of daemon process")
 	viper.BindPFlags(startCmd.Flags())
 	log.SetLevel(log.DebugLevel)
 	actor.SetLogLevel(actorlog.DebugLevel)
