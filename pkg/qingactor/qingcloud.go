@@ -12,16 +12,16 @@ import (
 )
 
 const (
-	instanceIDFile = "/etc/qingcloud/instance-id"
+	instanceIDFile     = "/etc/qingcloud/instance-id"
 	QingCloudActorName = "QingCloudActor"
 )
 
 var QingCloudPid *actor.PID
 
-func init(){
+func init() {
 	props := actor.FromProducer(NewQingCloudActor)
 	var err error
-	QingCloudPid,err =actor.SpawnNamed(props, QingCloudActorName)
+	QingCloudPid, err = actor.SpawnNamed(props, QingCloudActorName)
 	if err != nil {
 		log.Errorf("failed to spawn qingcloud actor: %v", err)
 	}
@@ -61,7 +61,6 @@ func NewQingcloudInitializeMessage(filepath string, zone string) (*QingcloudInit
 	if _, ok := zoneMap[zone]; !ok {
 		return nil, fmt.Errorf("Zone is invalid %s", zone)
 	}
-
 
 	return &QingcloudInitializeMessage{
 		Zone:           zone,
@@ -157,7 +156,7 @@ func (qactor *QingCloudActor) Receive(context actor.Context) {
 	case *actor.Started:
 
 	default:
-		context.Respond(messages.QingCloudErrorMessage{Err: fmt.Errorf("QingCloud Sdk is not initialized.msg:%v",msg)})
+		context.Respond(messages.QingCloudErrorMessage{Err: fmt.Errorf("QingCloud Sdk is not initialized.msg:%v", msg)})
 	}
 }
 
@@ -169,13 +168,15 @@ func (qactor *QingCloudActor) ProcessMsg(context actor.Context) {
 	case CreateNicMessage:
 		qactor.nicStub.Request(msg, context.Sender())
 	case DeleteNicMessage:
-		qactor.nicStub.Request(msg,context.Sender())
+		qactor.nicStub.Request(msg, context.Sender())
 	case DeleteVxnetMessage:
-		qactor.vxNetStub.Request(msg,context.Sender())
+		qactor.vxNetStub.Request(msg, context.Sender())
 	case DescribeNicMessage:
-		qactor.nicStub.Request(msg,context.Sender())
+		qactor.nicStub.Request(msg, context.Sender())
 	case DescribeVxnetMessage:
-		qactor.vxNetStub.Request(msg,context.Sender())
+		qactor.vxNetStub.Request(msg, context.Sender())
+	case ModifyNicNameMessage:
+		qactor.nicStub.Request(msg,context.Sender())
 	case QingcloudInitializeMessage:
 		qactor.Stop()
 		qactor.Start(&msg)
@@ -192,5 +193,3 @@ func loadInstanceID() (string, error) {
 	}
 	return string(content), nil
 }
-
-

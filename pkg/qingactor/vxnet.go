@@ -16,7 +16,7 @@ type VxNetActor struct {
 	jobStub   *service.JobService
 }
 
-const(
+const (
 	DefaultQueryVxnetTimeout = 30 * time.Second
 )
 
@@ -46,7 +46,7 @@ type DescribeVxnetMessage struct {
 }
 
 type DescribeVxnetReplyMessage struct {
-	Err error
+	Err      error
 	Networks []*common.Network
 }
 
@@ -108,13 +108,13 @@ func (vxnet *VxNetActor) Receive(context actor.Context) {
 		} else {
 			reply.Err = nil
 		}
-		for _,vxnet :=range result.VxNetSet{
+		for _, vxnet := range result.VxNetSet {
 
-			reply.Networks = append(reply.Networks,&common.Network{
-				NetworkID:*vxnet.VxNetID,
-				NetworkName:*vxnet.VxNetName,
-				Pool: *vxnet.Router.IPNetwork,
-				Gateway:*vxnet.Router.ManagerIP,
+			reply.Networks = append(reply.Networks, &common.Network{
+				NetworkID:   *vxnet.VxNetID,
+				NetworkName: *vxnet.VxNetName,
+				Pool:        *vxnet.Router.IPNetwork,
+				Gateway:     *vxnet.Router.ManagerIP,
 			})
 		}
 		context.Respond(reply)

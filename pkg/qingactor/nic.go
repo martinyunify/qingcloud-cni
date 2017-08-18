@@ -25,17 +25,17 @@ type NicActor struct {
 type CreateNicMessage struct {
 	NetworkID string
 	Nicname   string
+	Quantity  int
 }
 
 //CreateNicReplyMessage create vxnet reply message
 type CreateNicReplyMessage struct {
 	Err error
-	Nic common.Endpoint
+	Nic []*common.Endpoint
 }
 
 type DeleteNicMessage struct {
-	Nic     string
-	Nicname   string
+	Nic     []*string
 }
 
 type DeleteNicReplyMessage struct {
@@ -45,27 +45,31 @@ type DeleteNicReplyMessage struct {
 type DescribeNicMessage struct {
 	Instanceid string
 	Nicid      []*string
-	Nicname string
+	Nicname    string
 }
 
 type DescribeNicReplyMessage struct {
-	Err error
+	Err       error
 	Endpoints []*common.Endpoint
+}
+
+type ModifyNicNameMessage struct{
+	Nicid string
+	Nicname string
 }
 
 const (
 	DefaultCreateNicTimeout = 30 * time.Second
 	DefaultDeleteNicTimeout = 30 * time.Second
-	DefaultQueryNicTimeout = 30 * time.Second
+	DefaultQueryNicTimeout  = 30 * time.Second
 )
 
 //Receive message handler function
 func (nicactor *NicActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	case CreateNicMessage:
-		count := 1
 		request := service.CreateNicsInput{
-			Count:   &count,
+			Count:   &msg.Quantity,
 			VxNet:   &msg.NetworkID,
 			NICName: &msg.Nicname,
 		}
@@ -80,13 +84,14 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 			context.Respond(reply)
 			return
 		}
-		nic := result.Nics[0]
-		reply.Nic = common.Endpoint{
-			NetworkID:  msg.NetworkID,
-			EndpointID: *nic.NICID,
-			Address:    *nic.PrivateIP,
+		for _, nic := range result.Nics {
+			reply.Nic = append(reply.Nic, &common.Endpoint{
+				NetworkID:  msg.NetworkID,
+				EndpointID: *nic.NICID,
+				Address:    *nic.PrivateIP,
+			})
+			log.Debugf("Created nic %s", *nic.NICID)
 		}
-		log.Debugf("Created nic %s", *nic.NICID)
 
 		//attach nic to host
 		instanceid, err := loadInstanceID()
@@ -96,8 +101,12 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 			context.Respond(reply)
 			return
 		}
+		var nicidlist []*string
+		for _, nic := range result.Nics {
+			nicidlist = append(nicidlist, nic.NICID)
+		}
 		attrequest := service.AttachNicsInput{
-			Nics:     []*string{nic.NICID},
+			Nics:     nicidlist,
 			Instance: &instanceid,
 		}
 		attresult, err := nicactor.nicStub.AttachNics(&attrequest)
@@ -108,18 +117,18 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 			}
 		}
 
-		if err = nicactor.waitNic(*attresult.JobID, *nic.NICID, net.FlagUp); err != nil {
+		if err = nicactor.waitNic(*attresult.JobID, nicidlist, net.FlagUp); err != nil {
 			reply.Err = err
 		}
 
 		context.Respond(reply)
-		log.Debugf("Attached nic %s to host", *nic.NICID)
+		log.Debugf("Attached nic %s to host", nicidlist)
 
 	case DeleteNicMessage:
 		reply := DeleteNicReplyMessage{}
 
 		request := service.DetachNicsInput{
-			Nics: []*string{&msg.Nic},
+			Nics: msg.Nic,
 		}
 
 		detresult, err := nicactor.nicStub.DetachNics(&request)
@@ -137,7 +146,7 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 			return
 		}
 		delRequest := service.DeleteNicsInput{
-			Nics: []*string{&msg.Nic},
+			Nics: msg.Nic,
 		}
 
 		delresult, err := nicactor.nicStub.DeleteNics(&delRequest)
@@ -149,7 +158,7 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 		}
 		context.Respond(reply)
 	case DescribeNicMessage:
-		reply:= DescribeNicReplyMessage{}
+		reply := DescribeNicReplyMessage{}
 
 		request := service.DescribeNicsInput{}
 		if msg.Nicname != "" {
@@ -158,44 +167,52 @@ func (nicactor *NicActor) Receive(context actor.Context) {
 		if len(msg.Nicid) > 0 {
 			request.Nics = msg.Nicid
 		}
-		if msg.Instanceid != ""{
-			request.Instances=[]*string{&msg.Instanceid}
+		if msg.Instanceid != "" {
+			request.Instances = []*string{&msg.Instanceid}
 		}
-		descriResult, err:= nicactor.nicStub.DescribeNics(&request)
+		descriResult, err := nicactor.nicStub.DescribeNics(&request)
 		if err != nil {
-			reply.Err = fmt.Errorf("Failed to describe nic:%v",err)
+			reply.Err = fmt.Errorf("Failed to describe nic:%v", err)
 			context.Respond(reply)
 			return
 		}
-		if *descriResult.RetCode != 0{
-			reply.Err = fmt.Errorf("Failed to describe nic: %s",*descriResult.Message)
+		if *descriResult.RetCode != 0 {
+			reply.Err = fmt.Errorf("Failed to describe nic: %s", *descriResult.Message)
 			context.Respond(reply)
 			return
 		}
-		for _,nic := range descriResult.NICSet{
-			reply.Endpoints=append(reply.Endpoints,&common.Endpoint{
-				Address:*nic.PrivateIP,
-				EndpointID:*nic.NICID,
-				NetworkID: *nic.VxNetID,
+		for _, nic := range descriResult.NICSet {
+			reply.Endpoints = append(reply.Endpoints, &common.Endpoint{
+				Address:    *nic.PrivateIP,
+				EndpointID: *nic.NICID,
+				NetworkID:  *nic.VxNetID,
 			})
 		}
 		context.Respond(reply)
+	case ModifyNicNameMessage:
+		request:= service.ModifyNicAttributesInput{
+			NICID:&msg.Nicid,
+			NICName:&msg.Nicname,
+		}
+		nicactor.nicStub.ModifyNicAttributes(&request)
 	}
 }
 
-func (nicactor *NicActor) waitNic(jobid string, nicID string, status net.Flags) error {
-	log.Debugf("Wait for nic %v", nicID)
+func (nicactor *NicActor) waitNic(jobid string, nicIDs []*string, status net.Flags) error {
+	log.Debugf("Wait for nic %v", nicIDs)
 	err := qcutil.WaitForSpecific(func() bool {
-		link, err := utils.LinkByMacAddr(nicID)
-		if err != nil {
-			return false
+		for _, nicID := range nicIDs {
+			link, err := utils.LinkByMacAddr(*nicID)
+			if err != nil {
+				return false
+			}
+			if link.Attrs().Flags|status == 0 {
+				return false
+			}
+			log.Debugf("Find link %s %s", link.Attrs().Name, *nicID)
 		}
-		if link.Attrs().Flags|status != 0 {
-			log.Debugf("Find link %s %s", link.Attrs().Name, nicID)
-			return true
-		}
-		return false
-	}, 25*time.Second, 5*time.Second)
+		return true
+	}, 25*time.Second, 1*time.Second)
 	if err != nil {
 		return err
 	}

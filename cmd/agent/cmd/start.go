@@ -16,17 +16,17 @@ package cmd
 
 import (
 	"github.com/AsynkronIT/protoactor-go/actor"
+	actorlog "github.com/AsynkronIT/protoactor-go/log"
 	"github.com/AsynkronIT/protoactor-go/remote"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yunify/qingcloud-cni/pkg/nicmanagr"
+	"github.com/yunify/qingcloud-cni/pkg/qingactor"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
-	"github.com/yunify/qingcloud-cni/pkg/qingactor"
-	actorlog "github.com/AsynkronIT/protoactor-go/log"
 )
 
 // startCmd represents the start command
@@ -42,7 +42,6 @@ var startCmd = &cobra.Command{
 
 		remote.Start(viper.GetString("bindaddr"), remote.WithEndpointWriterBatchSize(10000))
 
-
 		msg, err := qingactor.NewQingcloudInitializeMessage(viper.GetString("QYAccessFilePath"), viper.GetString("zone"))
 		if err != nil {
 			log.Errorf("Invalid QingCloud configuration: %v", err)
@@ -51,12 +50,17 @@ var startCmd = &cobra.Command{
 		pid := actor.NewLocalPID(qingactor.QingCloudActorName)
 		pid.Tell(*msg)
 
-		poolInitMsg, err := nicmanagr.NewResourcePoolInitMessage(viper.GetStringSlice("vxnet"),viper.GetString("policy"))
+		poolInitMsg, err := nicmanagr.NewResourcePoolInitMessage(
+			viper.GetStringSlice("vxnet"),
+			viper.GetString("policy"),
+			viper.GetString("cachens"),
+			viper.GetInt("cachesize"),
+		)
 
 		pid = actor.NewLocalPID(nicmanagr.NicManagerActorName)
 		pid.Tell(*poolInitMsg)
 
-		gatewaymsg:=nicmanagr.InitGatewayMessage{Nsname:viper.GetString("gatewayns")}
+		gatewaymsg := nicmanagr.InitGatewayMessage{Nsname: viper.GetString("gatewayns")}
 		pid = actor.NewLocalPID(nicmanagr.GatewayManagerActorName)
 		pid.Tell(gatewaymsg)
 
@@ -90,11 +94,13 @@ func init() {
 	startCmd.Flags().String("zone", "pek3a", "QingCloud zone")
 	startCmd.Flags().StringSlice("vxnet", []string{"vxnet-xxxxxxx"}, "vxnet id list")
 	startCmd.Flags().String("iface", "eth0", "Default nic which is used by host and will not be deleted")
-	startCmd.Flags().String("policy","FailRotate", "policy of Selecting which vxnet to create nic from.(FailRotate,RoundRotate,Random)")
-	startCmd.Flags().String("gatewayns","hostnic","gateway nic name")
-	startCmd.Flags().String("bindaddr","0.0.0.0:31080", "bind address of daemon process")
+	startCmd.Flags().String("policy", "FailRotate", "policy of Selecting which vxnet to create nic from.(FailRotate,RoundRotate,Random)")
+	startCmd.Flags().String("gatewayns", "hostnic", "gateway nic name")
+	hostname, _ := os.Hostname()
+	startCmd.Flags().String("cachens", hostname+"_cached", "name of nics which is attached to host but not used.")
+	startCmd.Flags().Int("cachesize",2,"The size of nic cache list")
+	startCmd.Flags().String("bindaddr", "0.0.0.0:31080", "bind address of daemon process")
 	viper.BindPFlags(startCmd.Flags())
 	log.SetLevel(log.DebugLevel)
 	actor.SetLogLevel(actorlog.DebugLevel)
 }
-

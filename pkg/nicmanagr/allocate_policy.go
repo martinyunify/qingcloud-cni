@@ -2,21 +2,22 @@ package nicmanagr
 
 import (
 	"fmt"
-	"time"
 	"math/rand"
 	"strings"
+	"time"
 )
 
 type CreationPolicy struct {
-	poolSize int
+	poolSize      int
 	policyFuction PolicyFunction
-	flag int
-	lastError error
+	flag          int
+	lastError     error
 }
 
-type PolicyFunction func(size int,flag int,laststatus error) int
+type PolicyFunction func(size int, flag int, laststatus error) int
 
 type PolicyType uint
+
 const (
 	RoundRotate = iota
 	FailRotate
@@ -24,7 +25,7 @@ const (
 	Unsupported
 )
 
-func GetPolicyType(policy string)PolicyType{
+func GetPolicyType(policy string) PolicyType {
 	switch strings.ToLower(policy) {
 	case "roundrotate":
 		return RoundRotate
@@ -37,28 +38,28 @@ func GetPolicyType(policy string)PolicyType{
 	}
 }
 
-func NewCreationPolicy(size int, policytype PolicyType) (policy *CreationPolicy,err error){
+func NewCreationPolicy(size int, policytype PolicyType) (policy *CreationPolicy, err error) {
 	policy = &CreationPolicy{
-		flag:0,
+		flag: 0,
 	}
-	if err = policy.SetPoolSize(size); err != nil{
+	if err = policy.SetPoolSize(size); err != nil {
 		return nil, err
 	}
-	if err = policy.SetPolicy(policytype); err != nil{
-		return nil,err
+	if err = policy.SetPolicy(policytype); err != nil {
+		return nil, err
 	}
 	return
 }
 
-func (policy *CreationPolicy) SetPoolSize(size int) error{
-	if size <=0 {
+func (policy *CreationPolicy) SetPoolSize(size int) error {
+	if size <= 0 {
 		return fmt.Errorf("Resource pool size should be greater than 0")
 	}
 	policy.poolSize = size
 	return nil
 }
 
-func (policy *CreationPolicy) SetPolicy(policytype PolicyType) error{
+func (policy *CreationPolicy) SetPolicy(policytype PolicyType) error {
 	switch policytype {
 	case RoundRotate:
 		policy.policyFuction = policy.roundRotate
@@ -72,29 +73,38 @@ func (policy *CreationPolicy) SetPolicy(policytype PolicyType) error{
 	return nil
 }
 
-func (policy *CreationPolicy) UpdateResult(err error){
+func (policy *CreationPolicy) UpdateResult(err error) {
 	policy.lastError = err
 }
 
-func (policy *CreationPolicy) GetNextItem()int {
+func (policy *CreationPolicy) GetNextItem() int {
 	if policy.policyFuction != nil {
-		policy.flag=policy.policyFuction(policy.poolSize,policy.flag,policy.lastError)
+		policy.flag = policy.policyFuction(policy.poolSize, policy.flag, policy.lastError)
 	}
 	return policy.flag
 }
 
-func (policy *CreationPolicy) failRotate(size int,flag int,laststatus error)int {
+func (policy *CreationPolicy) failRotate(size int, flag int, laststatus error) int {
+	if size == 1 {
+		return 0
+	}
 	if laststatus == nil {
 		return flag
 	}
-	return flag+1 % size
+	return (flag + 1)%size
 }
 
-func (policy *CreationPolicy) roundRotate(size int,flag int,laststatus error)int {
-	return flag+1 % size
+func (policy *CreationPolicy) roundRotate(size int, flag int, laststatus error) int {
+	if size ==1 {
+		return 0
+	}
+	return (flag + 1)%size
 }
 
-func (policy *CreationPolicy) random(size int,flag int,laststatus error)int {
+func (policy *CreationPolicy) random(size int, flag int, laststatus error) int {
+	if size == 1 {
+		return 0
+	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return r.Intn(size)
 }
